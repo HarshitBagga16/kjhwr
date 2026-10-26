@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import Depends, FastAPI
@@ -17,6 +18,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan context for startup and shutdown routines."""
     settings = get_settings()
     setup_logging(settings.LOG_LEVEL)
+    try:
+        from scripts.seed_demo_data import seed_demo_data
+        seed_demo_data()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Startup DB check/seed exception: %s", exc)
     yield
 
 
