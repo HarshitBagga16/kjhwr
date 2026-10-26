@@ -1,401 +1,556 @@
 import React from 'react';
 
 /**
- * FarmBackground: Continuous ambient animated background featuring:
- * - A traditional red, white & brown warehouse/barn.
- * - A slow-rotating small brown farm windmill.
- * - Long pasture grass and farm trees swaying in a continuous gentle breeze.
- * - Small cartoon animals (cow, sheep, bunny) standing in the meadow with animated blinking eyes.
- * - Floating continuous breeze streamlines drifting across the landscape.
+ * FarmBackground: Full-viewport, bright, lush-green animated farm landscape.
+ *
+ * Visual Perspective: Camera positioned above, angled at 60 degrees (top-down 2.5D farm view).
+ * Elements:
+ * - Bright, vibrant rolling green pastures, clover fields, and winding dirt road.
+ * - Clusters of long, lush pasture grass swaying gently in the wind.
+ * - Traditional red, white & brown farm warehouse / barn seen from 60° above.
+ * - Traditional small brown farm windmill with rotating blades.
+ * - Swaying orchard & farm shade trees with 60° depth shadows.
+ * - Cartoon animals with animated blinking eyes (Daisy the cow, Barnaby the sheep, Pippin the bunny, little chicks).
+ * - Continuous gentle breeze streamlines drifting across the landscape.
  */
 export const FarmBackground: React.FC = () => {
   return (
     <div
-      className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none opacity-40 transition-opacity duration-1000"
+      className="fixed inset-0 w-screen h-screen pointer-events-none z-0 overflow-hidden select-none"
       aria-hidden="true"
     >
-      {/* 1. SKY BREEZE PARTICLES & STREAMLINES */}
-      <div className="absolute inset-0">
-        <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          {/* Breeze Stream 1 */}
-          <g className="animate-farm-breeze-1">
-            <path
-              d="M -100 90 Q 200 70, 500 95 T 1100 80"
-              fill="none"
-              stroke="#3A0F34"
-              strokeWidth="1.5"
-              strokeDasharray="12 8"
-              opacity="0.3"
-            />
-            <circle cx="280" cy="85" r="2.5" fill="#EAAA00" opacity="0.6" />
-            <circle cx="620" cy="90" r="1.8" fill="#3A0F34" opacity="0.4" />
-          </g>
-
-          {/* Breeze Stream 2 */}
-          <g className="animate-farm-breeze-2">
-            <path
-              d="M -150 240 Q 250 210, 600 235 T 1300 220"
-              fill="none"
-              stroke="#3A0F34"
-              strokeWidth="1.5"
-              strokeDasharray="18 10"
-              opacity="0.25"
-            />
-            <circle cx="340" cy="225" r="2" fill="#EAAA00" opacity="0.5" />
-          </g>
-
-          {/* Breeze Stream 3 */}
-          <g className="animate-farm-breeze-3">
-            <path
-              d="M -80 420 Q 300 390, 750 415 T 1400 400"
-              fill="none"
-              stroke="#3A0F34"
-              strokeWidth="2"
-              strokeDasharray="15 12"
-              opacity="0.3"
-            />
-            <circle cx="450" cy="405" r="2.2" fill="#3A0F34" opacity="0.4" />
-          </g>
-        </svg>
-      </div>
-
-      {/* 2. ROLLING HILLS & PASTURE LANDSCAPE */}
+      {/* FULL-VIEWPORT 60-DEGREE TOP-DOWN FARM SVG */}
       <svg
-        viewBox="0 0 1440 450"
-        preserveAspectRatio="none"
-        className="absolute bottom-0 left-0 right-0 w-full h-[380px] sm:h-[440px]"
+        viewBox="0 0 1920 1080"
+        preserveAspectRatio="xMidYMid slice"
+        className="w-full h-full object-cover"
+        xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          {/* Pasture grass clip */}
-          <linearGradient id="hillGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#CBD5E1" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#94A3B8" stopOpacity="0.6" />
+          {/* 1. Lush Green Pasture Gradients */}
+          <linearGradient id="pastureBase" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#4ADE80" />   {/* Vibrant Spring Green */}
+            <stop offset="45%" stopColor="#22C55E" />  {/* Rich Pasture Green */}
+            <stop offset="100%" stopColor="#16A34A" /> {/* Deep Meadow Green */}
           </linearGradient>
-          <linearGradient id="hillGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#94A3B8" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#64748B" stopOpacity="0.7" />
+
+          <linearGradient id="pastureHigh" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#86EFAC" />   {/* Bright Sunny Lime */}
+            <stop offset="100%" stopColor="#4ADE80" />
           </linearGradient>
+
+          {/* 2. Earthy Dirt Road Gradient */}
+          <linearGradient id="dirtRoad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#D97706" />
+            <stop offset="100%" stopColor="#B45309" />
+          </linearGradient>
+
+          {/* 3. Pond Water Gradient */}
+          <linearGradient id="pondWater" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#38BDF8" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </linearGradient>
+
+          {/* 4. Roof Texture Gradient (Warm Brown) */}
+          <linearGradient id="barnRoof" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#92400E" />
+            <stop offset="100%" stopColor="#78350F" />
+          </linearGradient>
+
+          {/* 5. 60-degree Ground Shadow Filter */}
+          <filter id="farmShadow" x="-10%" y="-10%" width="130%" height="130%">
+            <feDropShadow dx="12" dy="16" stdDeviation="6" floodColor="#14532D" floodOpacity="0.35" />
+          </filter>
         </defs>
 
-        {/* Distant Rolling Hills */}
+        {/* ======================================================== */}
+        {/* BASE GROUND: VIBRANT BRIGHT GREEN PASTURES & HILLS */}
+        {/* ======================================================== */}
+        <rect width="1920" height="1080" fill="url(#pastureBase)" />
+
+        {/* Upper Sunlit Meadow (Top Layer at 60° tilt) */}
         <path
-          d="M 0 220 Q 320 160, 680 200 T 1440 180 L 1440 450 L 0 450 Z"
-          fill="url(#hillGrad1)"
+          d="M 0 0 L 1920 0 L 1920 480 Q 1400 420, 960 460 T 0 380 Z"
+          fill="url(#pastureHigh)"
+          opacity="0.85"
         />
 
-        {/* Foreground Meadow Hill */}
+        {/* Lower Left Meadow Hillock */}
         <path
-          d="M 0 280 Q 420 230, 880 260 T 1440 250 L 1440 450 L 0 450 Z"
-          fill="url(#hillGrad2)"
+          d="M 0 620 Q 420 540, 850 680 T 1920 720 L 1920 1080 L 0 1080 Z"
+          fill="#16A34A"
+          opacity="0.4"
         />
 
-        {/* Pasture Fence Posts & Rails */}
-        <g stroke="#78350F" strokeWidth="2" opacity="0.5">
-          <line x1="40" y1="260" x2="40" y2="300" strokeWidth="3" />
-          <line x1="90" y1="265" x2="90" y2="305" strokeWidth="3" />
-          <line x1="140" y1="270" x2="140" y2="310" strokeWidth="3" />
-          <line x1="190" y1="275" x2="190" y2="315" strokeWidth="3" />
-          <line x1="30" y1="275" x2="200" y2="290" />
-          <line x1="30" y1="288" x2="200" y2="303" />
+        {/* Soft Pasture Clover Patches (Bright Light Green Fields) */}
+        <ellipse cx="450" cy="180" rx="220" ry="85" fill="#86EFAC" opacity="0.45" />
+        <ellipse cx="1480" cy="220" rx="260" ry="95" fill="#86EFAC" opacity="0.4" />
+        <ellipse cx="880" cy="850" rx="340" ry="120" fill="#86EFAC" opacity="0.35" />
+
+        {/* ======================================================== */}
+        {/* WINDING COUNTRY DIRT TRACTOR TRAIL (60° ANGLE) */}
+        {/* ======================================================== */}
+        <g opacity="0.85">
+          <path
+            d="M -50 280 Q 380 340, 680 480 T 1200 680 Q 1550 820, 2000 880"
+            fill="none"
+            stroke="url(#dirtRoad)"
+            strokeWidth="54"
+            strokeLinecap="round"
+          />
+          {/* Wheel Ruts */}
+          <path
+            d="M -50 270 Q 380 330, 680 470 T 1200 670 Q 1550 810, 2000 870"
+            fill="none"
+            stroke="#78350F"
+            strokeWidth="4"
+            strokeDasharray="24 16"
+            opacity="0.6"
+          />
+          <path
+            d="M -50 290 Q 380 350, 680 490 T 1200 690 Q 1550 830, 2000 890"
+            fill="none"
+            stroke="#78350F"
+            strokeWidth="4"
+            strokeDasharray="20 14"
+            opacity="0.6"
+          />
         </g>
 
-        {/* ---------------------------------------------------- */}
-        {/* A. RED, WHITE & BROWN WAREHOUSE / BARN */}
-        {/* ---------------------------------------------------- */}
-        <g transform="translate(180, 160)">
-          {/* Main Red Walls */}
-          <rect x="0" y="45" width="110" height="75" fill="#991B1B" stroke="#3A0F34" strokeWidth="2.5" />
+        {/* Small Duck Pond in Meadow (with reflective blue water) */}
+        <g transform="translate(1420, 780)" filter="url(#farmShadow)">
+          <ellipse cx="90" cy="60" rx="110" ry="60" fill="#0284C7" stroke="#38BDF8" strokeWidth="4" />
+          <ellipse cx="85" cy="55" rx="90" ry="45" fill="url(#pondWater)" />
+          {/* Water ripples */}
+          <path d="M 50 48 Q 75 42, 100 48" fill="none" stroke="#FFFFFF" strokeWidth="2" opacity="0.6" />
+          <path d="M 80 65 Q 110 58, 135 65" fill="none" stroke="#FFFFFF" strokeWidth="2" opacity="0.5" />
+          {/* Cute Little Yellow Duck */}
+          <ellipse cx="85" cy="55" rx="8" ry="6" fill="#FACC15" />
+          <circle cx="80" cy="51" r="5" fill="#FACC15" />
+          <polygon points="76,51 70,53 76,55" fill="#EA580C" />
+          <circle cx="79" cy="50" r="1" fill="#000000" />
+        </g>
 
-          {/* White Corner Trim */}
-          <rect x="0" y="45" width="8" height="75" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1.5" />
-          <rect x="102" y="45" width="8" height="75" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1.5" />
+        {/* ======================================================== */}
+        {/* CONTINUOUS GENTLE BREEZE STREAMLINES */}
+        {/* ======================================================== */}
+        <g opacity="0.7">
+          <g className="animate-farm-breeze-1">
+            <path
+              d="M -120 160 Q 400 110, 950 180 T 2100 150"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="3.5"
+              strokeDasharray="24 16"
+              opacity="0.75"
+            />
+            <circle cx="520" cy="140" r="3.5" fill="#FEF08A" opacity="0.8" />
+            <circle cx="1120" cy="165" r="3" fill="#FFFFFF" opacity="0.9" />
+          </g>
 
-          {/* Brown Gambrel Roof */}
+          <g className="animate-farm-breeze-2">
+            <path
+              d="M -180 420 Q 450 360, 1100 440 T 2200 400"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="3"
+              strokeDasharray="30 18"
+              opacity="0.65"
+            />
+            <circle cx="680" cy="390" r="3" fill="#FEF08A" opacity="0.8" />
+          </g>
+
+          <g className="animate-farm-breeze-3">
+            <path
+              d="M -100 760 Q 550 710, 1300 790 T 2150 750"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="4"
+              strokeDasharray="22 14"
+              opacity="0.7"
+            />
+            <circle cx="850" cy="740" r="3.5" fill="#FFFFFF" opacity="0.85" />
+          </g>
+        </g>
+
+        {/* ======================================================== */}
+        {/* A. RED, WHITE & BROWN WAREHOUSE / BARN (60° ANGLE VIEW) */}
+        {/* ======================================================== */}
+        <g transform="translate(240, 150)" filter="url(#farmShadow)">
+          {/* Barn Ground Shadow */}
+          <polygon points="-15,185 240,185 285,145 30,145" fill="#14532D" opacity="0.4" />
+
+          {/* 1. Side Red Wall (Angled 60°) */}
           <polygon
-            points="-8,45 22,12 88,12 118,45"
+            points="180,60 250,90 250,185 180,155"
+            fill="#991B1B"
+            stroke="#3A0F34"
+            strokeWidth="3"
+          />
+          {/* White Wall Trim */}
+          <line x1="250" y1="90" x2="250" y2="185" stroke="#FFFFFF" strokeWidth="4" />
+          <line x1="180" y1="60" x2="180" y2="155" stroke="#FFFFFF" strokeWidth="4" />
+
+          {/* 2. Front Red Facade */}
+          <polygon
+            points="20,60 180,60 180,155 20,155"
+            fill="#DC2626"
+            stroke="#3A0F34"
+            strokeWidth="3.5"
+          />
+          {/* White Trim around Facade */}
+          <rect x="20" y="60" width="160" height="95" fill="none" stroke="#FFFFFF" strokeWidth="4" />
+
+          {/* 3. Brown Pitched Gambrel Roof (Viewed from 60° above) */}
+          {/* Main Front Roof Slope */}
+          <polygon
+            points="0,60 30,10 190,10 180,60"
+            fill="url(#barnRoof)"
+            stroke="#3A0F34"
+            strokeWidth="3.5"
+          />
+          {/* Right Roof Slope (Depth) */}
+          <polygon
+            points="180,60 190,10 260,40 250,90"
             fill="#78350F"
+            stroke="#3A0F34"
+            strokeWidth="3"
+          />
+          {/* White Roof Trim */}
+          <line x1="0" y1="60" x2="30" y2="10" stroke="#FFFFFF" strokeWidth="4" />
+          <line x1="30" y1="10" x2="190" y2="10" stroke="#FFFFFF" strokeWidth="4" />
+          <line x1="190" y1="10" x2="260" y2="40" stroke="#FFFFFF" strokeWidth="4" />
+
+          {/* Roof Weathervane */}
+          <line x1="110" y1="10" x2="110" y2="-12" stroke="#3A0F34" strokeWidth="3" />
+          <polygon points="110,-12 124,-7 110,-2" fill="#EAAA00" stroke="#3A0F34" strokeWidth="1.5" />
+
+          {/* White Arched Loft Window */}
+          <path
+            d="M 85 55 Q 100 38, 115 55 Z"
+            fill="#FFFFFF"
             stroke="#3A0F34"
             strokeWidth="2.5"
           />
-          {/* Roof Ridge & Weathervane */}
-          <line x1="22" y1="12" x2="88" y2="12" stroke="#5C2605" strokeWidth="3" />
-          <line x1="55" y1="12" x2="55" y2="0" stroke="#3A0F34" strokeWidth="2" />
-          <polygon points="55,0 65,4 55,8" fill="#EAAA00" stroke="#3A0F34" strokeWidth="1" />
+          <line x1="100" y1="44" x2="100" y2="55" stroke="#3A0F34" strokeWidth="2" />
 
-          {/* White Barn Attic Window */}
-          <path
-            d="M 45 42 Q 55 30 65 42 Z"
-            fill="#FFFFFF"
-            stroke="#3A0F34"
-            strokeWidth="1.5"
-          />
-          <line x1="55" y1="34" x2="55" y2="42" stroke="#3A0F34" strokeWidth="1.5" />
-
-          {/* Brown Double Barn Doors with White 'X' Bracing */}
-          <rect x="34" y="68" width="42" height="52" fill="#5C2605" stroke="#3A0F34" strokeWidth="2" />
-          <line x1="55" y1="68" x2="55" y2="120" stroke="#FFFFFF" strokeWidth="2" />
+          {/* 4. Brown Barn Double Doors with Crisp White 'X' Bracing */}
+          <rect x="65" y="88" width="70" height="67" fill="#5C2605" stroke="#3A0F34" strokeWidth="3" />
+          <line x1="100" y1="88" x2="100" y2="155" stroke="#FFFFFF" strokeWidth="3" />
           {/* Left Door X */}
-          <line x1="34" y1="68" x2="55" y2="120" stroke="#FFFFFF" strokeWidth="1.5" />
-          <line x1="34" y1="120" x2="55" y2="68" stroke="#FFFFFF" strokeWidth="1.5" />
+          <line x1="65" y1="88" x2="100" y2="155" stroke="#FFFFFF" strokeWidth="3" />
+          <line x1="65" y1="155" x2="100" y2="88" stroke="#FFFFFF" strokeWidth="3" />
           {/* Right Door X */}
-          <line x1="55" y1="68" x2="76" y2="120" stroke="#FFFFFF" strokeWidth="1.5" />
-          <line x1="55" y1="120" x2="76" y2="68" stroke="#FFFFFF" strokeWidth="1.5" />
+          <line x1="100" y1="88" x2="135" y2="155" stroke="#FFFFFF" strokeWidth="3" />
+          <line x1="100" y1="155" x2="135" y2="88" stroke="#FFFFFF" strokeWidth="3" />
 
-          {/* Side Lean-to Shed (Brown) */}
-          <polygon
-            points="110,70 142,85 142,120 110,120"
-            fill="#854D0E"
-            stroke="#3A0F34"
-            strokeWidth="2"
-          />
-          <line x1="110" y1="70" x2="142" y2="85" stroke="#78350F" strokeWidth="3" />
+          {/* Hay Bale outside barn */}
+          <ellipse cx="195" cy="155" rx="16" ry="10" fill="#FACC15" stroke="#78350F" strokeWidth="2" />
         </g>
 
-        {/* ---------------------------------------------------- */}
-        {/* B. SMALL BROWN TRADITIONAL FARM WINDMILL */}
-        {/* ---------------------------------------------------- */}
-        <g transform="translate(370, 140)">
-          {/* Brown Wooden Lattice Tower */}
+        {/* ======================================================== */}
+        {/* B. SMALL BROWN TRADITIONAL WINDMILL (60° ANGLE VIEW) */}
+        {/* ======================================================== */}
+        <g transform="translate(1540, 180)" filter="url(#farmShadow)">
+          {/* Windmill Shadow */}
+          <ellipse cx="60" cy="205" rx="45" ry="18" fill="#14532D" opacity="0.4" />
+
+          {/* Brown 4-Legged Timber Lattice Tower */}
           <polygon
-            points="38,60 46,60 55,140 29,140"
+            points="48,70 68,70 82,195 34,195"
             fill="#78350F"
             stroke="#3A0F34"
-            strokeWidth="2"
+            strokeWidth="3.5"
           />
-          {/* Lattice Cross Braces */}
-          <line x1="36" y1="80" x2="48" y2="80" stroke="#5C2605" strokeWidth="2" />
-          <line x1="33" y1="105" x2="51" y2="105" stroke="#5C2605" strokeWidth="2" />
-          <line x1="31" y1="125" x2="53" y2="125" stroke="#5C2605" strokeWidth="2" />
-          <line x1="36" y1="80" x2="51" y2="105" stroke="#5C2605" strokeWidth="1.5" />
-          <line x1="48" y1="80" x2="33" y2="105" stroke="#5C2605" strokeWidth="1.5" />
-          <line x1="33" y1="105" x2="53" y2="125" stroke="#5C2605" strokeWidth="1.5" />
-          <line x1="51" y1="105" x2="31" y2="125" stroke="#5C2605" strokeWidth="1.5" />
+          {/* Cross Bracing */}
+          <line x1="45" y1="100" x2="71" y2="100" stroke="#5C2605" strokeWidth="3" />
+          <line x1="41" y1="135" x2="75" y2="135" stroke="#5C2605" strokeWidth="3" />
+          <line x1="37" y1="170" x2="79" y2="170" stroke="#5C2605" strokeWidth="3" />
+          <line x1="45" y1="100" x2="75" y2="135" stroke="#5C2605" strokeWidth="2" />
+          <line x1="71" y1="100" x2="41" y2="135" stroke="#5C2605" strokeWidth="2" />
+          <line x1="41" y1="135" x2="79" y2="170" stroke="#5C2605" strokeWidth="2" />
+          <line x1="75" y1="135" x2="37" y2="170" stroke="#5C2605" strokeWidth="2" />
 
-          {/* Windmill Hub Cap & Tail Vane */}
-          <rect x="36" y="52" width="12" height="12" rx="2" fill="#5C2605" stroke="#3A0F34" strokeWidth="1.5" />
+          {/* Cap & Tail Vane */}
+          <rect x="46" y="58" width="24" height="15" rx="3" fill="#5C2605" stroke="#3A0F34" strokeWidth="2.5" />
           {/* Tail Vane pointing right */}
-          <polygon points="48,56 70,52 70,64 48,60" fill="#92400E" stroke="#3A0F34" strokeWidth="1.5" />
+          <polygon points="68,62 105,55 105,75 68,68" fill="#92400E" stroke="#3A0F34" strokeWidth="2" />
 
-          {/* Slow Continuous Rotating Blades Group (Hub at 42, 58) */}
-          <g className="animate-farm-windmill" style={{ transformOrigin: '42px 58px' }}>
+          {/* SLOW ROTATING 4-BLADE ROTOR (Center Hub at 58, 65) */}
+          <g className="animate-farm-windmill" style={{ transformOrigin: '58px 65px' }}>
             {/* Blade 1 (North) */}
-            <polygon points="40,58 36,15 48,15 44,58" fill="#854D0E" stroke="#3A0F34" strokeWidth="1.5" />
-            <line x1="42" y1="58" x2="42" y2="15" stroke="#5C2605" strokeWidth="1.5" />
+            <polygon points="55,65 48,10 68,10 61,65" fill="#854D0E" stroke="#3A0F34" strokeWidth="2" />
+            <line x1="58" y1="65" x2="58" y2="10" stroke="#5C2605" strokeWidth="2.5" />
             {/* Blade 2 (East) */}
             <polygon
-              points="40,58 36,15 48,15 44,58"
+              points="55,65 48,10 68,10 61,65"
               fill="#854D0E"
               stroke="#3A0F34"
-              strokeWidth="1.5"
-              transform="rotate(90 42 58)"
+              strokeWidth="2"
+              transform="rotate(90 58 65)"
             />
             {/* Blade 3 (South) */}
             <polygon
-              points="40,58 36,15 48,15 44,58"
+              points="55,65 48,10 68,10 61,65"
               fill="#854D0E"
               stroke="#3A0F34"
-              strokeWidth="1.5"
-              transform="rotate(180 42 58)"
+              strokeWidth="2"
+              transform="rotate(180 58 65)"
             />
             {/* Blade 4 (West) */}
             <polygon
-              points="40,58 36,15 48,15 44,58"
+              points="55,65 48,10 68,10 61,65"
               fill="#854D0E"
               stroke="#3A0F34"
-              strokeWidth="1.5"
-              transform="rotate(270 42 58)"
+              strokeWidth="2"
+              transform="rotate(270 58 65)"
             />
-            {/* Center Boss */}
-            <circle cx="42" cy="58" r="4" fill="#EAAA00" stroke="#3A0F34" strokeWidth="1.5" />
+            {/* Windmill Hub Cap */}
+            <circle cx="58" cy="65" r="6" fill="#EAAA00" stroke="#3A0F34" strokeWidth="2" />
           </g>
         </g>
 
-        {/* ---------------------------------------------------- */}
-        {/* C. FARM TREES SWAYING IN BREEZE */}
-        {/* ---------------------------------------------------- */}
-        {/* Tree 1: Near Barn */}
-        <g transform="translate(130, 160)" className="animate-tree-sway">
+        {/* ======================================================== */}
+        {/* C. FARM TREES SWAYING IN BREEZE (60° ANGLE CANOPIES) */}
+        {/* ======================================================== */}
+        {/* Tree 1: Near Barn (Left) */}
+        <g transform="translate(140, 180)" filter="url(#farmShadow)" className="animate-tree-sway">
+          <ellipse cx="50" cy="170" rx="35" ry="14" fill="#14532D" opacity="0.35" />
           {/* Trunk */}
-          <path d="M 22 120 Q 20 80, 24 55 Q 28 80, 26 120 Z" fill="#78350F" stroke="#3A0F34" strokeWidth="2" />
-          {/* Foliage Canopy */}
-          <circle cx="23" cy="50" r="26" fill="#15803D" stroke="#3A0F34" strokeWidth="2" />
-          <circle cx="12" cy="42" r="18" fill="#16A34A" stroke="#3A0F34" strokeWidth="1.5" />
-          <circle cx="34" cy="40" r="19" fill="#16A34A" stroke="#3A0F34" strokeWidth="1.5" />
-          <circle cx="23" cy="28" r="16" fill="#22C55E" stroke="#3A0F34" strokeWidth="1.5" />
+          <path d="M 44 170 Q 42 110, 48 70 Q 58 110, 54 170 Z" fill="#78350F" stroke="#3A0F34" strokeWidth="3" />
+          {/* Lush Green Canopy Seen From Above */}
+          <circle cx="48" cy="65" r="46" fill="#15803D" stroke="#3A0F34" strokeWidth="3.5" />
+          <circle cx="28" cy="52" r="32" fill="#16A34A" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="68" cy="50" r="34" fill="#22C55E" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="48" cy="32" r="28" fill="#4ADE80" stroke="#3A0F34" strokeWidth="2" />
+          {/* Cute red apples */}
+          <circle cx="36" cy="48" r="4" fill="#EF4444" />
+          <circle cx="58" cy="42" r="4" fill="#EF4444" />
+          <circle cx="48" cy="68" r="4" fill="#EF4444" />
         </g>
 
-        {/* Tree 2: Far Right Pasture */}
-        <g transform="translate(1320, 180)" className="animate-tree-sway">
-          <path d="M 28 110 Q 25 75, 30 50 Q 35 75, 32 110 Z" fill="#78350F" stroke="#3A0F34" strokeWidth="2" />
-          <circle cx="30" cy="45" r="30" fill="#15803D" stroke="#3A0F34" strokeWidth="2" />
-          <circle cx="16" cy="36" r="20" fill="#16A34A" stroke="#3A0F34" strokeWidth="1.5" />
-          <circle cx="44" cy="34" r="21" fill="#22C55E" stroke="#3A0F34" strokeWidth="1.5" />
+        {/* Tree 2: Center Orchard */}
+        <g transform="translate(1080, 120)" filter="url(#farmShadow)" className="animate-tree-sway">
+          <ellipse cx="60" cy="180" rx="40" ry="16" fill="#14532D" opacity="0.35" />
+          <path d="M 54 180 Q 52 115, 58 75 Q 68 115, 64 180 Z" fill="#78350F" stroke="#3A0F34" strokeWidth="3" />
+          <circle cx="58" cy="70" r="50" fill="#15803D" stroke="#3A0F34" strokeWidth="3.5" />
+          <circle cx="38" cy="55" r="35" fill="#16A34A" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="78" cy="52" r="36" fill="#22C55E" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="58" cy="34" r="30" fill="#4ADE80" stroke="#3A0F34" strokeWidth="2" />
         </g>
 
-        {/* ---------------------------------------------------- */}
-        {/* D. CARTOON ANIMALS WITH BLINKING EYES */}
-        {/* ---------------------------------------------------- */}
+        {/* Tree 3: Bottom Right Meadow */}
+        <g transform="translate(1720, 680)" filter="url(#farmShadow)" className="animate-tree-sway">
+          <ellipse cx="60" cy="175" rx="45" ry="18" fill="#14532D" opacity="0.35" />
+          <path d="M 52 175 Q 50 110, 56 65 Q 66 110, 62 175 Z" fill="#78350F" stroke="#3A0F34" strokeWidth="3" />
+          <circle cx="58" cy="65" r="52" fill="#15803D" stroke="#3A0F34" strokeWidth="3.5" />
+          <circle cx="36" cy="50" r="36" fill="#16A34A" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="80" cy="48" r="38" fill="#22C55E" stroke="#3A0F34" strokeWidth="2.5" />
+        </g>
 
-        {/* 1. CARTOON COW ("Daisy") */}
-        <g transform="translate(490, 240)" className="animate-animal-bob">
-          {/* Cow Legs */}
-          <rect x="18" y="55" width="8" height="26" rx="2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
-          <rect x="32" y="55" width="8" height="26" rx="2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
-          <rect x="62" y="55" width="8" height="26" rx="2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
-          <rect x="76" y="55" width="8" height="26" rx="2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
-          {/* Hooves */}
-          <rect x="18" y="75" width="8" height="6" fill="#3A0F34" />
-          <rect x="32" y="75" width="8" height="6" fill="#3A0F34" />
-          <rect x="62" y="75" width="8" height="6" fill="#3A0F34" />
-          <rect x="76" y="75" width="8" height="6" fill="#3A0F34" />
+        {/* ======================================================== */}
+        {/* D. CARTOON ANIMALS GRAZING WITH BLINKING EYES (60° ANGLE) */}
+        {/* ======================================================== */}
+
+        {/* 1. CARTOON COW ("Daisy") - Grazing in center meadow */}
+        <g transform="translate(680, 520)" filter="url(#farmShadow)" className="animate-animal-bob">
+          {/* Ground Shadow at 60° */}
+          <ellipse cx="65" cy="92" rx="48" ry="18" fill="#14532D" opacity="0.4" />
+
+          {/* White Legs with Black Hooves */}
+          <rect x="24" y="65" width="10" height="30" rx="3" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2.5" />
+          <rect x="42" y="65" width="10" height="30" rx="3" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2.5" />
+          <rect x="78" y="65" width="10" height="30" rx="3" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2.5" />
+          <rect x="96" y="65" width="10" height="30" rx="3" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2.5" />
+          <rect x="24" y="88" width="10" height="7" fill="#3A0F34" />
+          <rect x="42" y="88" width="10" height="7" fill="#3A0F34" />
+          <rect x="78" y="88" width="10" height="7" fill="#3A0F34" />
+          <rect x="96" y="88" width="10" height="7" fill="#3A0F34" />
 
           {/* Tail with tuft */}
-          <path d="M 88 32 Q 98 42, 94 56" fill="none" stroke="#3A0F34" strokeWidth="2" />
-          <circle cx="94" cy="58" r="3" fill="#3A0F34" />
+          <path d="M 112 40 Q 126 55, 120 74" fill="none" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="120" cy="76" r="4" fill="#3A0F34" />
 
-          {/* Cow Body */}
-          <ellipse cx="55" cy="40" rx="36" ry="24" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2.5" />
-          {/* Black Spots on Body */}
-          <path d="M 38 22 Q 48 28, 42 42 Q 32 38, 38 22 Z" fill="#3A0F34" />
-          <path d="M 68 28 Q 78 35, 74 48 Q 62 44, 68 28 Z" fill="#3A0F34" />
+          {/* Chubby Cow Body */}
+          <ellipse cx="68" cy="48" rx="46" ry="30" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="3" />
+          {/* Big Black Spots */}
+          <path d="M 44 26 Q 58 34, 52 50 Q 38 46, 44 26 Z" fill="#3A0F34" />
+          <path d="M 85 34 Q 98 44, 92 60 Q 78 54, 85 34 Z" fill="#3A0F34" />
 
-          {/* Cow Head */}
-          <ellipse cx="22" cy="24" rx="16" ry="14" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
-          {/* Patch over one eye */}
-          <path d="M 14 14 Q 22 14, 20 25 Q 12 25, 14 14 Z" fill="#3A0F34" />
+          {/* Cow Head (Seen from 60° above, looking at viewer) */}
+          <ellipse cx="26" cy="30" rx="20" ry="18" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="3" />
+          <path d="M 16 16 Q 26 16, 24 30 Q 14 30, 16 16 Z" fill="#3A0F34" />
 
-          {/* Little Horns */}
-          <path d="M 14 12 Q 12 4, 18 8" fill="none" stroke="#EAAA00" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M 28 12 Q 32 4, 26 8" fill="none" stroke="#EAAA00" strokeWidth="2.5" strokeLinecap="round" />
+          {/* Little Yellow Horns */}
+          <path d="M 16 14 Q 13 4, 21 9" fill="none" stroke="#EAAA00" strokeWidth="3.5" strokeLinecap="round" />
+          <path d="M 34 14 Q 39 4, 31 9" fill="none" stroke="#EAAA00" strokeWidth="3.5" strokeLinecap="round" />
           {/* Ears */}
-          <ellipse cx="7" cy="18" rx="6" ry="3" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1.5" />
-          <ellipse cx="37" cy="18" rx="6" ry="3" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1.5" />
+          <ellipse cx="8" cy="22" rx="7" ry="4" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
+          <ellipse cx="44" cy="22" rx="7" ry="4" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="2" />
 
-          {/* Pink Snout */}
-          <ellipse cx="18" cy="31" rx="10" ry="6" fill="#F472B6" stroke="#3A0F34" strokeWidth="1.5" />
-          <circle cx="15" cy="31" r="1.5" fill="#3A0F34" />
-          <circle cx="21" cy="31" r="1.5" fill="#3A0F34" />
+          {/* Cute Pink Snout */}
+          <ellipse cx="22" cy="38" rx="13" ry="8" fill="#F472B6" stroke="#3A0F34" strokeWidth="2" />
+          <circle cx="18" cy="38" r="2" fill="#3A0F34" />
+          <circle cx="26" cy="38" r="2" fill="#3A0F34" />
 
-          {/* BLINKING EYES (Left & Right) */}
+          {/* CARTOON BLINKING EYES (Daisy) */}
           <g className="animate-animal-blink">
             {/* Left Eye */}
-            <circle cx="16" cy="20" r="3.2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1" />
-            <circle cx="16" cy="20" r="1.8" fill="#3A0F34" />
-            <circle cx="15.2" cy="19.2" r="0.7" fill="#FFFFFF" />
+            <circle cx="18" cy="24" r="4.2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1.5" />
+            <circle cx="18" cy="24" r="2.4" fill="#3A0F34" />
+            <circle cx="17" cy="23" r="1" fill="#FFFFFF" />
 
             {/* Right Eye */}
-            <circle cx="25" cy="20" r="3.2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1" />
-            <circle cx="25" cy="20" r="1.8" fill="#3A0F34" />
-            <circle cx="24.2" cy="19.2" r="0.7" fill="#FFFFFF" />
+            <circle cx="30" cy="24" r="4.2" fill="#FFFFFF" stroke="#3A0F34" strokeWidth="1.5" />
+            <circle cx="30" cy="24" r="2.4" fill="#3A0F34" />
+            <circle cx="29" cy="23" r="1" fill="#FFFFFF" />
           </g>
         </g>
 
-        {/* 2. CARTOON SHEEP ("Barnaby") */}
-        <g transform="translate(630, 260)" className="animate-animal-bob-alt">
-          {/* Dark Little Legs */}
-          <rect x="14" y="38" width="5" height="18" rx="1.5" fill="#3A0F34" />
-          <rect x="25" y="38" width="5" height="18" rx="1.5" fill="#3A0F34" />
-          <rect x="44" y="38" width="5" height="18" rx="1.5" fill="#3A0F34" />
-          <rect x="54" y="38" width="5" height="18" rx="1.5" fill="#3A0F34" />
+        {/* 2. CARTOON SHEEP ("Barnaby") - Right meadow */}
+        <g transform="translate(1260, 480)" filter="url(#farmShadow)" className="animate-animal-bob-alt">
+          {/* Sheep Ground Shadow */}
+          <ellipse cx="45" cy="65" rx="38" ry="14" fill="#14532D" opacity="0.4" />
 
-          {/* Fluffy Cloud Body */}
-          <g fill="#F1F5F9" stroke="#3A0F34" strokeWidth="2">
-            <circle cx="24" cy="28" r="14" />
-            <circle cx="38" cy="22" r="15" />
-            <circle cx="52" cy="28" r="14" />
-            <circle cx="38" cy="34" r="14" />
+          {/* Little Dark Legs */}
+          <rect x="18" y="44" width="7" height="22" rx="2" fill="#3A0F34" />
+          <rect x="32" y="44" width="7" height="22" rx="2" fill="#3A0F34" />
+          <rect x="56" y="44" width="7" height="22" rx="2" fill="#3A0F34" />
+          <rect x="68" y="44" width="7" height="22" rx="2" fill="#3A0F34" />
+
+          {/* Puffy Cloud Wool Body */}
+          <g fill="#F8FAFC" stroke="#3A0F34" strokeWidth="2.5">
+            <circle cx="30" cy="32" r="18" />
+            <circle cx="48" cy="25" r="19" />
+            <circle cx="66" cy="32" r="18" />
+            <circle cx="48" cy="40" r="18" />
           </g>
 
-          {/* Dark Face */}
-          <ellipse cx="14" cy="22" rx="10" ry="9" fill="#1E293B" stroke="#3A0F34" strokeWidth="2" />
+          {/* Dark Charcoal Sheep Head */}
+          <ellipse cx="18" cy="25" rx="13" ry="12" fill="#1E293B" stroke="#3A0F34" strokeWidth="2.5" />
           {/* Floppy Ears */}
-          <ellipse cx="7" cy="16" rx="4" ry="2.5" fill="#1E293B" stroke="#3A0F34" strokeWidth="1.5" />
-          <ellipse cx="21" cy="16" rx="4" ry="2.5" fill="#1E293B" stroke="#3A0F34" strokeWidth="1.5" />
-          {/* Fluffy Wool Tuft on Forehead */}
-          <circle cx="14" cy="13" r="5" fill="#F1F5F9" stroke="#3A0F34" strokeWidth="1.5" />
+          <ellipse cx="9" cy="18" rx="6" ry="3.5" fill="#1E293B" stroke="#3A0F34" strokeWidth="1.8" />
+          <ellipse cx="27" cy="18" rx="6" ry="3.5" fill="#1E293B" stroke="#3A0F34" strokeWidth="1.8" />
+          {/* White Forehead Wool Puff */}
+          <circle cx="18" cy="14" r="6" fill="#F8FAFC" stroke="#3A0F34" strokeWidth="2" />
 
-          {/* SHEEP BLINKING EYES */}
+          {/* SHEEP BLINKING EYES (Barnaby) */}
           <g className="animate-animal-blink-delay">
-            <circle cx="11" cy="21" r="2.8" fill="#FFFFFF" />
-            <circle cx="11" cy="21" r="1.5" fill="#3A0F34" />
-            <circle cx="10.5" cy="20.5" r="0.6" fill="#FFFFFF" />
+            <circle cx="14" cy="24" r="3.6" fill="#FFFFFF" />
+            <circle cx="14" cy="24" r="2" fill="#3A0F34" />
+            <circle cx="13" cy="23.2" r="0.8" fill="#FFFFFF" />
 
-            <circle cx="17" cy="21" r="2.8" fill="#FFFFFF" />
-            <circle cx="17" cy="21" r="1.5" fill="#3A0F34" />
-            <circle cx="16.5" cy="20.5" r="0.6" fill="#FFFFFF" />
+            <circle cx="22" cy="24" r="3.6" fill="#FFFFFF" />
+            <circle cx="22" cy="24" r="2" fill="#3A0F34" />
+            <circle cx="21" cy="23.2" r="0.8" fill="#FFFFFF" />
           </g>
         </g>
 
-        {/* 3. CARTOON BUNNY ("Pippin") NESTLED IN GRASS */}
-        <g transform="translate(740, 300)" className="animate-animal-bob">
-          {/* Bunny Ears */}
-          <ellipse cx="8" cy="4" rx="3.5" ry="10" fill="#E2E8F0" stroke="#3A0F34" strokeWidth="1.5" />
-          <ellipse cx="8" cy="4" rx="1.8" ry="7" fill="#F472B6" />
-          <ellipse cx="16" cy="4" rx="3.5" ry="10" fill="#E2E8F0" stroke="#3A0F34" strokeWidth="1.5" />
-          <ellipse cx="16" cy="4" rx="1.8" ry="7" fill="#F472B6" />
+        {/* 3. CARTOON BUNNY ("Pippin") - Sitting by long grass */}
+        <g transform="translate(980, 640)" filter="url(#farmShadow)" className="animate-animal-bob">
+          <ellipse cx="18" cy="38" rx="16" ry="8" fill="#14532D" opacity="0.35" />
 
-          {/* Bunny Head & Body */}
-          <ellipse cx="12" cy="24" rx="12" ry="10" fill="#E2E8F0" stroke="#3A0F34" strokeWidth="2" />
-          <circle cx="12" cy="14" r="8" fill="#E2E8F0" stroke="#3A0F34" strokeWidth="2" />
+          {/* Long Bunny Ears with Pink Inner */}
+          <ellipse cx="12" cy="6" rx="4.5" ry="14" fill="#F1F5F9" stroke="#3A0F34" strokeWidth="2" />
+          <ellipse cx="12" cy="6" rx="2.5" ry="10" fill="#F472B6" />
+          <ellipse cx="24" cy="6" rx="4.5" ry="14" fill="#F1F5F9" stroke="#3A0F34" strokeWidth="2" />
+          <ellipse cx="24" cy="6" rx="2.5" ry="10" fill="#F472B6" />
 
-          {/* Pink Nose */}
-          <polygon points="12,17 10.5,15 13.5,15" fill="#F472B6" />
+          {/* Bunny Body & Head */}
+          <ellipse cx="18" cy="32" rx="15" ry="13" fill="#F1F5F9" stroke="#3A0F34" strokeWidth="2.5" />
+          <circle cx="18" cy="19" r="11" fill="#F1F5F9" stroke="#3A0F34" strokeWidth="2.5" />
+          <polygon points="18,23 16,20 20,20" fill="#F472B6" />
 
           {/* BUNNY BLINKING EYES */}
           <g className="animate-animal-blink-bunny">
-            <circle cx="9" cy="13" r="2" fill="#3A0F34" />
-            <circle cx="8.5" cy="12.5" r="0.6" fill="#FFFFFF" />
+            <circle cx="14" cy="18" r="2.8" fill="#3A0F34" />
+            <circle cx="13.2" cy="17.2" r="0.8" fill="#FFFFFF" />
 
-            <circle cx="15" cy="13" r="2" fill="#3A0F34" />
-            <circle cx="14.5" cy="12.5" r="0.6" fill="#FFFFFF" />
+            <circle cx="22" cy="18" r="2.8" fill="#3A0F34" />
+            <circle cx="21.2" cy="17.2" r="0.8" fill="#FFFFFF" />
           </g>
         </g>
 
-        {/* ---------------------------------------------------- */}
-        {/* E. LONG SWAYING MEADOW GRASS TUFTS */}
-        {/* ---------------------------------------------------- */}
-        {/* Grass Tuft 1 (Left) */}
-        <g transform="translate(80, 310)" className="animate-grass-1" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="0" y1="20" x2="-4" y2="0" />
-          <line x1="6" y1="20" x2="3" y2="-6" strokeWidth="3" />
-          <line x1="12" y1="20" x2="16" y2="2" />
+        {/* 4. LITTLE YELLOW CHICKS BY BARNYARD */}
+        <g transform="translate(480, 260)">
+          <ellipse cx="12" cy="16" rx="9" ry="7" fill="#FACC15" stroke="#3A0F34" strokeWidth="1.5" />
+          <circle cx="8" cy="11" r="5" fill="#FACC15" stroke="#3A0F34" strokeWidth="1.5" />
+          <polygon points="4,11 0,13 4,14" fill="#EA580C" />
+          <circle cx="7" cy="10" r="1" fill="#000000" />
+          <line x1="10" y1="22" x2="10" y2="28" stroke="#EA580C" strokeWidth="1.5" />
+          <line x1="15" y1="22" x2="15" y2="28" stroke="#EA580C" strokeWidth="1.5" />
         </g>
 
-        {/* Grass Tuft 2 (Under Barn) */}
-        <g transform="translate(290, 275)" className="animate-grass-2" stroke="#15803D" strokeWidth="3" strokeLinecap="round">
-          <line x1="0" y1="25" x2="-6" y2="0" />
-          <line x1="8" y1="25" x2="2" y2="-10" />
-          <line x1="16" y1="25" x2="12" y2="-4" />
-          <line x1="24" y1="25" x2="28" y2="2" />
+        {/* ======================================================== */}
+        {/* E. LONG, LUSH PASTURE GRASS SWAYING IN BREEZE (60° ANGLE) */}
+        {/* ======================================================== */}
+
+        {/* Grass Cluster 1: Barnyard Path */}
+        <g transform="translate(180, 240)" className="animate-grass-1" stroke="#15803D" strokeLinecap="round">
+          <line x1="0" y1="35" x2="-8" y2="0" strokeWidth="4.5" />
+          <line x1="10" y1="35" x2="4" y2="-12" strokeWidth="5" />
+          <line x1="20" y1="35" x2="22" y2="4" strokeWidth="4" />
+          <line x1="30" y1="35" x2="38" y2="-8" strokeWidth="4.5" />
         </g>
 
-        {/* Grass Tuft 3 (Around Cow) */}
-        <g transform="translate(470, 315)" className="animate-grass-1" stroke="#16A34A" strokeWidth="3" strokeLinecap="round">
-          <line x1="0" y1="24" x2="-5" y2="-4" />
-          <line x1="7" y1="24" x2="3" y2="-12" strokeWidth="3.5" />
-          <line x1="15" y1="24" x2="18" y2="-2" />
+        {/* Grass Cluster 2: Center Meadow */}
+        <g transform="translate(580, 480)" className="animate-grass-2" stroke="#16A34A" strokeLinecap="round">
+          <line x1="0" y1="40" x2="-12" y2="-5" strokeWidth="5" />
+          <line x1="12" y1="40" x2="2" y2="-18" strokeWidth="5.5" />
+          <line x1="24" y1="40" x2="20" y2="-6" strokeWidth="4.5" />
+          <line x1="36" y1="40" x2="44" y2="2" strokeWidth="5" />
         </g>
 
-        {/* Grass Tuft 4 (Around Bunny) */}
-        <g transform="translate(720, 320)" className="animate-grass-2" stroke="#22C55E" strokeWidth="3" strokeLinecap="round">
-          <line x1="0" y1="25" x2="-8" y2="-8" />
-          <line x1="8" y1="25" x2="2" y2="-15" strokeWidth="3.5" />
-          <line x1="16" y1="25" x2="14" y2="-5" />
-          <line x1="24" y1="25" x2="28" y2="0" />
+        {/* Grass Cluster 3: Around Daisy the Cow */}
+        <g transform="translate(820, 560)" className="animate-grass-1" stroke="#15803D" strokeLinecap="round">
+          <line x1="0" y1="38" x2="-10" y2="-8" strokeWidth="5" />
+          <line x1="14" y1="38" x2="4" y2="-20" strokeWidth="6" />
+          <line x1="28" y1="38" x2="32" y2="-4" strokeWidth="4.5" />
         </g>
 
-        {/* Grass Tuft 5 (Far Right) */}
-        <g transform="translate(1080, 290)" className="animate-grass-1" stroke="#15803D" strokeWidth="3" strokeLinecap="round">
-          <line x1="0" y1="25" x2="-6" y2="-2" />
-          <line x1="8" y1="25" x2="4" y2="-14" />
-          <line x1="16" y1="25" x2="20" y2="2" />
+        {/* Grass Cluster 4: Surrounding Pippin the Bunny */}
+        <g transform="translate(940, 680)" className="animate-grass-2" stroke="#22C55E" strokeLinecap="round">
+          <line x1="0" y1="42" x2="-14" y2="-10" strokeWidth="5.5" />
+          <line x1="14" y1="42" x2="2" y2="-22" strokeWidth="6" />
+          <line x1="26" y1="42" x2="22" y2="-10" strokeWidth="5" />
+          <line x1="38" y1="42" x2="46" y2="0" strokeWidth="5" />
+          <line x1="50" y1="42" x2="62" y2="-12" strokeWidth="4.5" />
         </g>
 
-        {/* Grass Tuft 6 */}
-        <g transform="translate(1240, 280)" className="animate-grass-2" stroke="#16A34A" strokeWidth="3" strokeLinecap="round">
-          <line x1="0" y1="25" x2="-5" y2="-5" />
-          <line x1="8" y1="25" x2="2" y2="-12" />
-          <line x1="16" y1="25" x2="18" y2="-2" />
+        {/* Grass Cluster 5: By the Sheep Meadow */}
+        <g transform="translate(1180, 520)" className="animate-grass-1" stroke="#16A34A" strokeLinecap="round">
+          <line x1="0" y1="40" x2="-10" y2="-8" strokeWidth="5" />
+          <line x1="12" y1="40" x2="4" y2="-18" strokeWidth="5.5" />
+          <line x1="24" y1="40" x2="26" y2="-4" strokeWidth="4.5" />
+        </g>
+
+        {/* Grass Cluster 6: Around Windmill */}
+        <g transform="translate(1480, 260)" className="animate-grass-2" stroke="#15803D" strokeLinecap="round">
+          <line x1="0" y1="36" x2="-8" y2="-6" strokeWidth="4.5" />
+          <line x1="12" y1="36" x2="6" y2="-16" strokeWidth="5" />
+          <line x1="24" y1="36" x2="28" y2="0" strokeWidth="4" />
+        </g>
+
+        {/* Grass Cluster 7: Near Pond Edge */}
+        <g transform="translate(1360, 820)" className="animate-grass-1" stroke="#22C55E" strokeLinecap="round">
+          <line x1="0" y1="44" x2="-14" y2="-12" strokeWidth="6" />
+          <line x1="15" y1="44" x2="4" y2="-24" strokeWidth="6.5" />
+          <line x1="30" y1="44" x2="34" y2="-8" strokeWidth="5" />
+          <line x1="45" y1="44" x2="55" y2="-16" strokeWidth="5.5" />
+        </g>
+
+        {/* Grass Cluster 8: Bottom Left Meadow */}
+        <g transform="translate(120, 840)" className="animate-grass-2" stroke="#15803D" strokeLinecap="round">
+          <line x1="0" y1="42" x2="-12" y2="-10" strokeWidth="5.5" />
+          <line x1="14" y1="42" x2="3" y2="-20" strokeWidth="6" />
+          <line x1="28" y1="42" x2="32" y2="-4" strokeWidth="5" />
+        </g>
+
+        {/* Grass Cluster 9: Bottom Right Meadow */}
+        <g transform="translate(1620, 920)" className="animate-grass-1" stroke="#16A34A" strokeLinecap="round">
+          <line x1="0" y1="40" x2="-10" y2="-8" strokeWidth="5" />
+          <line x1="12" y1="40" x2="5" y2="-18" strokeWidth="5.5" />
+          <line x1="24" y1="40" x2="28" y2="-4" strokeWidth="4.5" />
         </g>
       </svg>
     </div>
