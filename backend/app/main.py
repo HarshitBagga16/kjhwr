@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.routes import admin, analytics, dashboard, forecasts
+from app.api.routes import admin, analytics, contact, dashboard, forecasts
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.middleware import CacheHeaderMiddleware, RateLimiterMiddleware
@@ -46,6 +46,7 @@ app.add_middleware(RateLimiterMiddleware, max_requests=120, window_seconds=60)
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(forecasts.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(contact.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 
 

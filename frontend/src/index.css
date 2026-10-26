@@ -107,3 +107,64 @@ body {
   outline: 3px solid #EAAA00;
   outline-offset: 2px;
 }
+
+/* Kinetic Wind Turbine & Gust Animations */
+@keyframes turbine-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.turbine-rotor-idle {
+  animation: turbine-spin 6s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.turbine-rotor-gale {
+  animation: turbine-spin 0.4s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes wind-gust-particle {
+  0% {
+    transform: translateX(-120%) translateY(0) scaleY(1);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(200%) translateY(12px) scaleY(0.7);
+    opacity: 0;
+  }
+}
+
+.animate-wind-stream {
+  animation: wind-gust-particle 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* Stable table scrollbar styling without flickering */
+.teletype-table-container {
+  scrollbar-gutter: stable;
+  overflow-x: auto;
+}
+
+.teletype-table-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.teletype-table-container::-webkit-scrollbar-track {
+  background: #DDE3E8;
+  border-top: 1px solid #3A0F34;
+}
+
+.teletype-table-container::-webkit-scrollbar-thumb {
+  background: #3A0F34;
+}
+
