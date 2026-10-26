@@ -42,8 +42,10 @@ class HourlyProfile(BaseModel):
 
     hour: int  # 0 to 23
     mae_mw: Optional[float] = None
+    mean_absolute_error_mw: Optional[float] = None
     rmse_mw: Optional[float] = None
     bias_mw: Optional[float] = None
+    mean_error_mw: Optional[float] = None
     mean_forecast_mw: Optional[float] = None
     mean_actual_mw: Optional[float] = None
     sample_count: int = 0
@@ -236,8 +238,10 @@ class MetricsService:
                 HourlyProfile(
                     hour=hour,
                     mae_mw=mae,
+                    mean_absolute_error_mw=mae,
                     rmse_mw=rmse,
                     bias_mw=bias,
+                    mean_error_mw=bias,
                     mean_forecast_mw=mean_f,
                     mean_actual_mw=mean_a,
                     sample_count=n,

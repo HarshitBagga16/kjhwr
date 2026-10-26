@@ -2,9 +2,78 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232d7dd2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2'/></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WindSight — Day-Ahead Wind Intelligence</title>
+    
+    <!-- Primary Metadata -->
+    <title>WindSight — UK Day-Ahead Wind Forecast Intelligence Platform</title>
+    <meta name="description" content="Production-minded UK national wind generation forecast intelligence platform for day-ahead electricity procurement. Point-in-time Elexon BMRS forecast alignment, gate closure verification, and error analytics engineered by Harshit Bagga." />
+    <meta name="author" content="Harshit Bagga" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#3A0F34" />
+    <link rel="canonical" href="https://windsight.energy/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://windsight.energy/" />
+    <meta property="og:title" content="WindSight — UK Day-Ahead Wind Forecast Intelligence Platform" />
+    <meta property="og:description" content="Auditable point-in-time wind forecast tracking, gate closure enforcement, and diurnal error analytics for UK energy procurement desks. Built by Harshit Bagga." />
+    <meta property="og:image" content="https://windsight.energy/og-image.svg" />
+    <meta property="og:site_name" content="WindSight Intelligence" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://windsight.energy/" />
+    <meta name="twitter:title" content="WindSight — UK Day-Ahead Wind Forecast Intelligence Platform" />
+    <meta name="twitter:description" content="Auditable point-in-time wind forecast tracking, gate closure enforcement, and diurnal error analytics for UK energy procurement desks. Built by Harshit Bagga." />
+    <meta name="twitter:image" content="https://windsight.energy/og-image.svg" />
+
+    <!-- Search Console & Google Analytics Tags -->
+    <meta name="google-site-verification" content="windsight-bmrs-verification-token" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-WINDSIGHT01"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-WINDSIGHT01', { send_page_view: false });
+    </script>
+
+    <!-- Structured Data (JSON-LD Schema.org) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://windsight.energy/#organization",
+          "name": "WindSight Energy Intelligence",
+          "url": "https://windsight.energy",
+          "founder": {
+            "@type": "Person",
+            "name": "Harshit Bagga",
+            "email": "harshitbagga34@gmail.com"
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://windsight.energy/#webapp",
+          "name": "WindSight",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "All",
+          "author": {
+            "@type": "Person",
+            "name": "Harshit Bagga",
+            "email": "harshitbagga34@gmail.com"
+          },
+          "description": "UK national wind generation forecast intelligence platform for day-ahead electricity procurement. Point-in-time gate closure validation and diurnal error profiling."
+        }
+      ]
+    }
+    </script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233A0F34'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/></svg>" />
+
+    <!-- Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Unbounded:wght@700;800;900&display=swap" rel="stylesheet">

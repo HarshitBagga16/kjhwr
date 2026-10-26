@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.routes import admin, analytics, dashboard, forecasts
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.core.middleware import CacheHeaderMiddleware, RateLimiterMiddleware
 from app.db.session import get_db
 
 
@@ -36,6 +37,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure In-Memory Rate Limiter and Caching Headers
+app.add_middleware(CacheHeaderMiddleware)
+app.add_middleware(RateLimiterMiddleware, max_requests=120, window_seconds=60)
 
 # Include API Routers under /api
 app.include_router(dashboard.router, prefix="/api")

@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 
 // API Base configuration
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+// ==========================================
+// 1. DATA MODELS & TYPES
+// ==========================================
 interface AlignedObservation {
   delivery_start: string;
   delivery_date: string;
@@ -42,17 +45,130 @@ interface ForecastHistoryItem {
 
 interface HourlyProfile {
   hour: number;
-  mean_error_mw: number;
-  mean_absolute_error_mw: number;
+  bias_mw?: number;
+  mean_error_mw?: number;
+  mae_mw?: number;
+  mean_absolute_error_mw?: number;
+  rmse_mw?: number;
+  mean_forecast_mw?: number;
+  mean_actual_mw?: number;
   sample_count: number;
 }
 
+// ==========================================
+// 2. ERROR BOUNDARY COMPONENT
+// ==========================================
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: ErrorInfo | null;
+}
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    this.setState({ errorInfo });
+    console.error('WindSight ErrorBoundary caught an exception:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#DDE3E8] text-[#141217] flex items-center justify-center p-6 font-mono">
+          <div className="max-w-2xl w-full bg-white border-2 border-[#3A0F34] p-8 brutal-shadow space-y-6">
+            <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-4">
+              <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 border border-rose-800">
+                [ TELETYPE EXCEPTION | RUNTIME HALT ]
+              </span>
+              <span className="text-xs font-bold text-[#3A0F34]">ERROR CODE 500-APP</span>
+            </div>
+
+            <div>
+              <h1 className="font-display font-black text-2xl text-[#3A0F34]">
+                DISPATCH TELETYPE ENCOUNTERED A RUNTIME FAULT
+              </h1>
+              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                An unexpected execution anomaly interrupted telemetry rendering. The application state has been safely isolated to prevent lookahead corruption.
+              </p>
+            </div>
+
+            <div className="bg-[#DDE3E8] border border-[#3A0F34] p-4 text-xs font-mono overflow-x-auto text-[#3A0F34]">
+              <div className="font-bold text-rose-900 mb-1">
+                {this.state.error?.name || 'Error'}: {this.state.error?.message || 'Unknown runtime error'}
+              </div>
+              {this.state.errorInfo?.componentStack && (
+                <pre className="text-[11px] text-slate-600 overflow-x-auto mt-2 max-h-40">
+                  {this.state.errorInfo.componentStack}
+                </pre>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t-2 border-[#3A0F34]">
+              <div className="text-xs text-slate-500">
+                Lead Systems Engineer: <strong className="text-[#3A0F34]">Harshit Bagga</strong>
+              </div>
+              <div className="flex items-center space-x-3">
+                <a
+                  href="mailto:harshitbagga34@gmail.com?subject=WindSight%20Telemetry%20Exception"
+                  className="px-4 py-2 border-2 border-[#3A0F34] bg-white text-[#3A0F34] text-xs font-bold brutal-btn"
+                >
+                  [ NOTIFY DESK ]
+                </a>
+                <button
+                  type="button"
+                  onClick={this.handleReset}
+                  className="px-4 py-2 bg-[#3A0F34] text-white text-xs font-bold brutal-btn"
+                >
+                  [ REBOOT TELETYPE ]
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// ==========================================
+// 3. MAIN APPLICATION COMPONENT
+// ==========================================
 export function App() {
   // Operational state
   const [selectedDate, setSelectedDate] = useState<string>('2026-01-15');
   const [activeSection, setActiveSection] = useState<'ledger' | 'inspector' | 'diagnostics' | 'raw'>('ledger');
   const [selectedHour, setSelectedHour] = useState<number>(14);
   const [stampActive, setStampActive] = useState<boolean>(true);
+
+  // Modals
+  const [contactOpen, setContactOpen] = useState<boolean>(false);
+  const [privacyOpen, setPrivacyOpen] = useState<boolean>(false);
+
+  // Contact Form State
+  const [contactName, setContactName] = useState<string>('');
+  const [contactSenderEmail, setContactSenderEmail] = useState<string>('');
+  const [contactOrg, setContactOrg] = useState<string>('');
+  const [contactMsg, setContactMsg] = useState<string>('');
+  const [contactSubmitted, setContactSubmitted] = useState<boolean>(false);
 
   // Live Data State
   const [loading, setLoading] = useState<boolean>(true);
@@ -66,6 +182,17 @@ export function App() {
   const [sortField, setSortField] = useState<'delivery_hour' | 'error_mw' | 'absolute_error_mw'>('delivery_hour');
   const [sortAsc, setSortAsc] = useState<boolean>(true);
 
+  // Update dynamic page title
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      ledger: 'DISPATCH LEDGER',
+      inspector: 'VINTAGE DOCKET',
+      diagnostics: 'FLEET DIURNAL',
+      raw: 'RAW AUDIT LOG',
+    };
+    document.title = `WindSight — [ ${titles[activeSection]} ] | Harshit Bagga`;
+  }, [activeSection]);
+
   // Fetch Dashboard & Forecast observations
   const fetchDayData = useCallback(async (dateStr: string) => {
     setLoading(true);
@@ -73,7 +200,7 @@ export function App() {
     try {
       const res = await fetch(`${API_BASE}/api/dashboard?date=${dateStr}`);
       if (!res.ok) {
-        throw new Error(`TELEMETRY_DROP_HTTP_${res.status}: Wire connection rejected.`);
+        throw new Error(`TELEMETRY DROP HTTP ${res.status}: Wire connection rejected.`);
       }
       const data = await res.json();
       const obsList: AlignedObservation[] = data.observations ?? [];
@@ -81,7 +208,7 @@ export function App() {
       setMetrics(data.metrics ?? null);
       setStampActive(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'TELEMETRY_FAILURE: Wire silent.');
+      setError(err instanceof Error ? err.message : 'TELEMETRY FAILURE: Wire connection silent.');
     } finally {
       setLoading(false);
     }
@@ -96,7 +223,7 @@ export function App() {
         setHourlyProfiles(data.hourly ?? []);
       }
     } catch {
-      // Quiet background failure
+      // Quiet background fallback
     }
   }, []);
 
@@ -143,7 +270,7 @@ export function App() {
     }
   };
 
-  // Active observation
+  // Active observation for scrutiny
   const activeObs = useMemo(() => {
     return observations.find((o) => o.delivery_hour === selectedHour) ?? observations[0];
   }, [observations, selectedHour]);
@@ -176,33 +303,55 @@ export function App() {
     window.open(`${API_BASE}/api/analytics/export?from=${selectedDate}&to=${selectedDate}`, '_blank');
   };
 
+  const handleContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setContactSubmitted(true);
+    const subject = encodeURIComponent(`WindSight Dispatch Query: ${contactOrg || contactName}`);
+    const body = encodeURIComponent(
+      `Name: ${contactName}\nOrganization: ${contactOrg}\nSender Email: ${contactSenderEmail}\n\nMessage:\n${contactMsg}`
+    );
+    window.open(`mailto:harshitbagga34@gmail.com?subject=${subject}&body=${body}`, '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-[#DDE3E8] text-[#141217] flex flex-col font-mono selection:bg-[#EAAA00] selection:text-[#3A0F34]">
       {/* 1. TOP TELETYPE PROTOCOL HEADER */}
       <header className="border-b-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] px-4 py-3 select-none">
         <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-3">
-            <span className="font-display font-bold text-base tracking-tighter text-[#EAAA00] uppercase">
-              WINDSIGHT_LEDGER
+            <span className="font-display font-black text-base tracking-tight text-[#EAAA00] uppercase">
+              WINDSIGHT LEDGER
             </span>
             <span className="border border-[#EAAA00]/40 px-2 py-0.5 text-[10px] text-[#EAAA00] font-semibold tracking-wider">
-              [ PROTOCOL: ELEXON_BMRS_LIVE ]
+              [ PROTOCOL: ELEXON BMRS LIVE ]
             </span>
             <span className="hidden sm:inline text-slate-300">
-              // CUTOFF: 09:00_EUROPE/LONDON
+              CUTOFF: 09:00 EUROPE/LONDON
             </span>
           </div>
 
-          <div className="flex items-center space-x-2 text-[11px]">
-            <span className="inline-block w-2 h-2 bg-[#EAAA00] animate-pulse"></span>
-            <span className="text-[#EAAA00] font-bold">GRID_SYNC_OK</span>
+          <div className="flex items-center space-x-4 text-[11px]">
+            <div className="flex items-center space-x-1.5">
+              <span className={`inline-block w-2 h-2 ${loading ? 'bg-amber-400' : 'bg-[#EAAA00]'} animate-pulse`}></span>
+              <span className="text-[#EAAA00] font-bold">
+                {loading ? 'TELEMETRY SYNCING...' : 'GRID SYNC OK'}
+              </span>
+            </div>
             <span className="text-slate-400">|</span>
-            <span>SYSTEM_TIME: 2026-10-26T12:51:00Z</span>
+            <button
+              type="button"
+              onClick={() => setContactOpen(true)}
+              className="text-[#EAAA00] hover:text-white underline font-bold cursor-pointer transition-colors"
+            >
+              [ CONTACT DESK ]
+            </button>
+            <span className="text-slate-400 hidden lg:inline">|</span>
+            <span className="hidden lg:inline text-slate-300">SYSTEM: 2026-10-26 UTC</span>
           </div>
         </div>
       </header>
 
-      {/* 2. OPERATIONAL TELEGRAPH CONTROLS */}
+      {/* 2. OPERATIONAL TELEGRAPH NAVIGATION & BREADCRUMBS */}
       <nav className="border-b-2 border-[#3A0F34] bg-[#DDE3E8] px-4 py-2 sticky top-0 z-30">
         <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Section Mode Pills */}
@@ -210,203 +359,176 @@ export function App() {
             <button
               type="button"
               onClick={() => setActiveSection('ledger')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+              className={`px-3 py-1.5 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
                 activeSection === 'ledger'
                   ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
                   : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
               }`}
             >
-              [ 01 // DISPATCH_LEDGER ]
+              [ 01 DISPATCH LEDGER ]
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('inspector')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+              className={`px-3 py-1.5 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
                 activeSection === 'inspector'
                   ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
                   : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
               }`}
             >
-              [ 02 // VINTAGE_DOCKET ]
+              [ 02 VINTAGE DOCKET ]
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('diagnostics')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+              className={`px-3 py-1.5 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
                 activeSection === 'diagnostics'
                   ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
                   : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
               }`}
             >
-              [ 03 // FLEET_DIURNAL ]
+              [ 03 FLEET DIURNAL ]
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('raw')}
-              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+              className={`px-3 py-1.5 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
                 activeSection === 'raw'
                   ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
                   : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
               }`}
             >
-              [ 04 // RAW_AUDIT_LOG ]
+              [ 04 RAW AUDIT LOG ]
             </button>
           </div>
 
-          {/* Stepper & Date Picker */}
-          <div className="flex items-center space-x-2">
+          {/* Stepper Controls */}
+          <div className="flex items-center space-x-2 shrink-0">
             <button
               type="button"
               onClick={() => stepDate(-1)}
-              className="px-2.5 py-1 text-xs font-bold brutal-btn bg-white hover:bg-slate-100"
-              title="Step Day Backward"
+              className="px-2.5 py-1 text-xs font-bold bg-white text-[#3A0F34] border-2 border-[#3A0F34] brutal-btn"
+              title="Previous delivery day"
             >
-              [ -1D ]
+              [ PREV DAY ]
             </button>
 
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-white border-2 border-[#3A0F34] px-2 py-1 text-xs font-bold shadow-[2px_2px_0px_#3A0F34] focus:outline-none focus:ring-2 focus:ring-[#EAAA00]"
+              className="px-2 py-1 text-xs font-mono font-bold bg-white text-[#3A0F34] border-2 border-[#3A0F34] brutal-shadow-sm focus:outline-none focus:ring-2 focus:ring-[#EAAA00]"
             />
 
             <button
               type="button"
               onClick={() => stepDate(1)}
-              className="px-2.5 py-1 text-xs font-bold brutal-btn bg-white hover:bg-slate-100"
-              title="Step Day Forward"
+              className="px-2.5 py-1 text-xs font-bold bg-white text-[#3A0F34] border-2 border-[#3A0F34] brutal-btn"
+              title="Next delivery day"
             >
-              [ +1D ]
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fetchDayData(selectedDate)}
-              disabled={loading}
-              className="px-3 py-1 text-xs font-bold brutal-btn bg-[#EAAA00] text-[#3A0F34] hover:bg-amber-400"
-              title="Poll latest wire"
-            >
-              {loading ? '[ POLLING... ]' : '[ PULL_WIRE ]'}
+              [ NEXT DAY ]
             </button>
           </div>
         </div>
+
+        {/* Breadcrumb Trail */}
+        <div className="max-w-[1440px] mx-auto pt-1.5 pb-0.5 text-[10px] text-slate-600 flex items-center space-x-2">
+          <span>PORTAL</span>
+          <span>&gt;</span>
+          <span>UK ELECTRICITY TRANSMISSION</span>
+          <span>&gt;</span>
+          <span className="font-bold text-[#3A0F34]">
+            {activeSection === 'ledger' && '01 DISPATCH LEDGER (HOURLY ALIGNMENT)'}
+            {activeSection === 'inspector' && '02 VINTAGE DOCKET (GATE CLOSURE AUDIT)'}
+            {activeSection === 'diagnostics' && '03 FLEET DIURNAL (24-HOUR ERROR BIAS)'}
+            {activeSection === 'raw' && '04 RAW AUDIT LOG (RFC 4180 CSV)'}
+          </span>
+        </div>
       </nav>
 
-      {/* MAIN CONTAINER */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-        {/* 3. HERO SECTION WITH MASSIVE FLUID TYPE & MECHANICAL AUDIT STAMP */}
-        <section className="relative">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left 8 Cols: Unforgiving Headline */}
-            <div className="lg:col-span-8 space-y-4">
-              <div className="inline-block px-2.5 py-1 bg-[#3A0F34] text-[#EAAA00] text-xs font-bold tracking-widest border border-[#3A0F34]">
-                [ 01/20 // NATIONAL_OUTTURN_AUDIT ]
+      {/* 3. MAIN WORKSPACE */}
+      <main className="max-w-[1440px] mx-auto w-full px-4 py-6 space-y-6 flex-1">
+        {/* HERO MANIFESTO & GATE CLOSURE STATUS */}
+        <section className="bg-white border-2 border-[#3A0F34] p-6 brutal-shadow relative overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="max-w-3xl space-y-2">
+              <div className="flex items-center space-x-3">
+                <span className="bg-[#EAAA00] text-[#3A0F34] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                  DAY-AHEAD PROCUREMENT INTELLIGENCE
+                </span>
+                <span className="text-xs text-slate-500">
+                  WINDOW: JANUARY 2026 PILOT
+                </span>
               </div>
-
-              <h1 className="font-display font-black text-[#3A0F34] leading-[0.88] tracking-[-0.045em] text-[clamp(2.5rem,6.5vw,5.5rem)]">
-                THE WIND FLEET DOESN'T CARE ABOUT YOUR HEDGES.
+              <h1 className="font-display font-black text-3xl sm:text-4xl text-[#3A0F34] tracking-tight leading-none">
+                POINT-IN-TIME WIND GENERATION DISPATCH
               </h1>
-
-              <p className="text-sm sm:text-base font-medium text-[#141217] max-w-2xl leading-relaxed pt-1">
-                Day-ahead wind commitments stamped at 09:00 London gate closure audited against physical Elexon outturn. No post-gate revisions. No modeled excuses. Pure MW delta.
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans font-medium">
+                Auditing day-ahead wind power purchase decisions. Every forecast is matched at 09:00 Europe/London gate closure without lookahead bias. Evaluated strictly against settled Elexon BMRS physical outturn.
               </p>
             </div>
 
-            {/* Right 4 Cols: Mechanical Ink Stamp Delight (Tilted -1.5deg) */}
-            <div className="lg:col-span-4 flex flex-col items-start lg:items-end justify-center pt-2">
+            {/* Verification Stamp */}
+            <div className="shrink-0 flex items-center justify-end">
               <div
-                className={`w-full max-w-sm border-2 border-[#3A0F34] bg-white p-5 brutal-shadow-lg transform -rotate-1 transition-all ${
-                  stampActive ? 'ink-stamp-animated' : ''
+                onClick={() => setStampActive(!stampActive)}
+                className={`cursor-pointer select-none border-4 border-[#3A0F34] px-5 py-3 text-center transition-transform ${
+                  stampActive ? 'ink-stamp-in bg-[#EAAA00] text-[#3A0F34]' : 'bg-white text-slate-400 opacity-60'
                 }`}
               >
-                <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-2 mb-3">
-                  <span className="text-[11px] font-bold text-[#3A0F34]">
-                    [ AUDIT_RECORD: 2026-JAN ]
-                  </span>
-                  <span className="text-[10px] bg-[#EAAA00] text-[#3A0F34] px-1.5 py-0.5 font-bold">
-                    OFFICIAL_STAMP
-                  </span>
+                <div className="text-[10px] font-black tracking-widest uppercase">
+                  GATE CLOSURE ENFORCED
                 </div>
-
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">DELIVERY_DATE:</span>
-                    <span className="font-bold text-[#3A0F34]">{selectedDate}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">GATE_CLOSURE:</span>
-                    <span className="font-bold text-[#3A0F34]">09:00_EUROPE/LONDON</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">RESOLUTION:</span>
-                    <span className="font-bold text-[#3A0F34]">60M_MEAN_MATCH</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">DISQUALIFICATION:</span>
-                    <span className="font-bold text-rose-800">PUB_TIME &gt; 09:00 = VOID</span>
-                  </div>
+                <div className="font-display font-black text-lg tracking-tight mt-0.5">
+                  09:00 LONDON
                 </div>
-
-                <div className="mt-4 pt-3 border-t-2 border-dashed border-[#3A0F34] flex items-center justify-between">
-                  <span className="text-[10px] tracking-widest uppercase font-bold text-[#3A0F34]">
-                    GATE_VALIDITY:
-                  </span>
-                  <span className="text-xs font-bold bg-[#3A0F34] text-[#EAAA00] px-2 py-0.5">
-                    POINT_IN_TIME_LOCKED
-                  </span>
+                <div className="text-[9px] font-bold uppercase tracking-wider text-[#3A0F34]">
+                  NO FUTURE LEAKAGE
                 </div>
               </div>
             </div>
           </div>
-        </section>
 
-        {/* 4. ASYMMETRIC TRUTH DELTA KPI STRIP (No 3 equal cards!) */}
-        <section className="space-y-3">
-          <div className="text-xs font-bold uppercase tracking-wider text-[#3A0F34]">
-            [ 02/20 // QUANTIFIED_TRUTH_DELTAS ]
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            {/* Focal Point Card 1: 5 Columns - Brutal Marigold Bias Accent */}
-            <div className="md:col-span-5 bg-[#EAAA00] border-2 border-[#3A0F34] p-5 brutal-shadow transform rotate-[0.5deg]">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold tracking-wider text-[#3A0F34] uppercase">
-                  [ MEAN_FLEET_BIAS ]
-                </span>
-                <span className="text-[10px] bg-[#3A0F34] text-[#DDE3E8] px-2 py-0.5 font-bold">
-                  {metrics?.bias_mw !== null && (metrics?.bias_mw ?? 0) >= 0 ? 'OVERFORECAST' : 'UNDERFORECAST'}
-                </span>
+          {/* Focal Point Cards: Asymmetrical Grid */}
+          <div className="mt-6 pt-6 border-t-2 border-[#3A0F34] grid grid-cols-1 md:grid-cols-12 gap-4">
+            {/* Metric 1: Fleet Bias */}
+            <div className="md:col-span-5 bg-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold tracking-wider text-[#3A0F34] uppercase">
+                    [ MEAN SIGNED BIAS ]
+                  </span>
+                  <span className="text-[10px] font-bold bg-[#3A0F34] text-[#EAAA00] px-1.5 py-0.5">
+                    OVERFORECAST RISK
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <div className="font-display font-black text-4xl text-[#3A0F34]">
+                    {metrics?.bias_mw !== null && metrics?.bias_mw !== undefined
+                      ? `${metrics.bias_mw > 0 ? '+' : ''}${metrics.bias_mw.toFixed(1)}`
+                      : '--'}
+                    <span className="text-base font-normal ml-1">MW</span>
+                  </div>
+                  <div className="text-xs text-slate-600 mt-1">
+                    Positive bias indicates systematic overforecasting against physical outturn.
+                  </div>
+                </div>
               </div>
-
-              <div className="mt-3 flex items-baseline space-x-2">
-                <span className="font-display font-black text-4xl sm:text-5xl text-[#3A0F34] tracking-tight">
-                  {metrics?.bias_mw !== null && metrics?.bias_mw !== undefined
-                    ? `${metrics.bias_mw > 0 ? '+' : ''}${metrics.bias_mw.toFixed(1)}`
-                    : '--'}
-                </span>
-                <span className="font-bold text-lg text-[#3A0F34]">MW</span>
-              </div>
-
-              <p className="mt-2 text-xs text-[#3A0F34] leading-relaxed font-semibold">
-                Systematic signed error (F - A). Positive MW indicates wind generation fell short of day-ahead promises, driving emergency dispatch in the Balancing Mechanism.
-              </p>
-
-              <div className="mt-3 pt-2 border-t-2 border-[#3A0F34] text-[10px] text-[#3A0F34] flex justify-between font-bold">
-                <span>SAMPLE_N: {metrics?.sample_count ?? 0}</span>
-                <span>SIGN_CONVENTION: [F - A]</span>
+              <div className="mt-4 pt-3 border-t border-[#3A0F34]/30 flex justify-between text-xs text-slate-600">
+                <span>EVALUATED INTERVALS:</span>
+                <span className="font-bold text-[#3A0F34] font-mono">n={metrics?.sample_count ?? 0}</span>
               </div>
             </div>
 
-            {/* Focal Point Card 2: 4 Columns - Deep Aubergine MAE & RMSE */}
+            {/* Metric 2: Volumetric Deviation */}
             <div className="md:col-span-4 bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow">
               <span className="text-xs font-bold tracking-wider text-[#EAAA00] uppercase">
-                [ VOLUMETRIC_DEVIATION ]
+                [ VOLUMETRIC DEVIATION ]
               </span>
 
               <div className="mt-3 grid grid-cols-2 gap-4 border-b-2 border-[#DDE3E8]/20 pb-4">
                 <div>
-                  <div className="text-[10px] text-slate-300 font-bold uppercase">MAE (MEAN_ABS)</div>
+                  <div className="text-[10px] text-slate-300 font-bold uppercase">MAE (MEAN ABS)</div>
                   <div className="font-display font-bold text-2xl text-white mt-1">
                     {metrics?.mae_mw ? `${metrics.mae_mw.toFixed(1)}` : '--'}
                     <span className="text-xs font-normal text-slate-300 ml-1">MW</span>
@@ -422,18 +544,18 @@ export function App() {
               </div>
 
               <div className="mt-3 flex items-center justify-between text-xs">
-                <span className="text-slate-300">WAPE (VOLUME_WEIGHTED):</span>
+                <span className="text-slate-300">WAPE (VOLUME WEIGHTED):</span>
                 <span className="font-bold text-white font-mono">
                   {metrics?.wape_pct !== null && metrics?.wape_pct !== undefined ? `${metrics.wape_pct.toFixed(1)}%` : '--'}
                 </span>
               </div>
             </div>
 
-            {/* Focal Point Card 3: 3 Columns - Slate Ground Coverage & Audit Integrity */}
+            {/* Metric 3: Data Integrity */}
             <div className="md:col-span-3 bg-white border-2 border-[#3A0F34] p-5 brutal-shadow flex flex-col justify-between">
               <div>
                 <span className="text-xs font-bold tracking-wider text-[#3A0F34] uppercase">
-                  [ DATA_INTEGRITY ]
+                  [ DATA INTEGRITY ]
                 </span>
 
                 <div className="mt-3">
@@ -441,18 +563,18 @@ export function App() {
                     {metrics?.coverage_pct ? `${metrics.coverage_pct.toFixed(1)}%` : '0%'}
                   </div>
                   <div className="text-[11px] font-bold text-slate-600 mt-0.5">
-                    MATCHED_INTERVALS: {metrics?.matched_count ?? 0} / {metrics?.total_intervals ?? 24}
+                    MATCHED INTERVALS: {metrics?.matched_count ?? 0} / {metrics?.total_intervals ?? 24}
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 pt-3 border-t-2 border-[#3A0F34] space-y-1 text-[11px]">
                 <div className="flex justify-between">
-                  <span>DROPPED_ACTUALS:</span>
+                  <span>DROPPED ACTUALS:</span>
                   <span className="font-bold text-rose-700">{metrics?.missing_actual_count ?? 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>ORPHAN_FORECASTS:</span>
+                  <span>ORPHAN FORECASTS:</span>
                   <span className="font-bold text-amber-700">{metrics?.missing_forecast_count ?? 0}</span>
                 </div>
               </div>
@@ -463,7 +585,7 @@ export function App() {
         {/* 5. TAB VIEW CONTAINER */}
         {error ? (
           <div className="bg-white border-2 border-[#3A0F34] p-8 brutal-shadow text-center space-y-4">
-            <div className="text-sm font-bold text-rose-700 uppercase">[ WIRE_INTERRUPTION_RECORDED ]</div>
+            <div className="text-sm font-bold text-rose-700 uppercase">[ WIRE INTERRUPTION RECORDED ]</div>
             <div className="font-display text-xl font-bold text-[#3A0F34]">{error}</div>
             <p className="text-xs text-slate-600 max-w-md mx-auto">
               Connection to Elexon BMRS endpoint timed out or failed handshake. Verify local backend process is running on port 8000.
@@ -473,17 +595,17 @@ export function App() {
               onClick={() => fetchDayData(selectedDate)}
               className="px-4 py-2 bg-[#3A0F34] text-white font-bold text-xs brutal-btn"
             >
-              [ RETRY_HANDSHAKE ]
+              [ RETRY HANDSHAKE ]
             </button>
           </div>
         ) : observations.length === 0 ? (
           <div className="bg-white border-2 border-[#3A0F34] p-8 brutal-shadow text-center space-y-4">
-            <div className="text-xs font-bold text-amber-600 uppercase">[ NO_INGESTED_LEDGER_FOR_{selectedDate} ]</div>
+            <div className="text-xs font-bold text-amber-600 uppercase">[ NO INGESTED LEDGER FOR {selectedDate} ]</div>
             <h2 className="font-display text-2xl font-bold text-[#3A0F34]">
               NO RECORDINGS FOR THIS SETTLEMENT DATE
             </h2>
             <p className="text-xs text-slate-600 max-w-lg mx-auto">
-              The primary pilot demonstration window is seeded with January 2026 data. Select a date within January 2026 to see full Elexon outturn profiles.
+              The primary demonstration window is seeded with January 2026 data. Select a date within January 2026 to see full Elexon outturn profiles.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <button
@@ -491,14 +613,14 @@ export function App() {
                 onClick={() => setSelectedDate('2026-01-15')}
                 className="px-4 py-2 bg-[#EAAA00] text-[#3A0F34] font-bold text-xs brutal-btn"
               >
-                [ JUMP_JAN_15_2026 ]
+                [ JUMP JAN 15 2026 ]
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedDate('2026-01-01')}
                 className="px-4 py-2 bg-white text-[#3A0F34] font-bold text-xs brutal-btn"
               >
-                [ JUMP_JAN_01_2026 ]
+                [ JUMP JAN 01 2026 ]
               </button>
             </div>
           </div>
@@ -519,11 +641,11 @@ export function App() {
                   <div className="flex items-center space-x-4 text-xs font-bold">
                     <span className="flex items-center space-x-1.5">
                       <span className="w-3.5 h-3.5 border-2 border-[#3A0F34] bg-[#3A0F34]"></span>
-                      <span>OUTTURN_ACTUAL (MW)</span>
+                      <span>OUTTURN ACTUAL (MW)</span>
                     </span>
                     <span className="flex items-center space-x-1.5">
                       <span className="w-3.5 h-3.5 border-2 border-[#3A0F34] bg-[#EAAA00]"></span>
-                      <span>FORECAST_0900 (MW)</span>
+                      <span>FORECAST 09:00 (MW)</span>
                     </span>
                   </div>
                 </div>
@@ -531,7 +653,7 @@ export function App() {
                 {/* SVG Visualizer Canvas with 2px borders & brutal aesthetic */}
                 <div className="bg-white border-2 border-[#3A0F34] p-4 brutal-shadow overflow-x-auto">
                   <div className="min-w-[700px]">
-                    <svg viewBox="0 0 960 360" className="w-full h-80 overflow-visible">
+                    <svg viewBox="0 0 960 360" className="w-full h-80 overflow-visible" role="img" aria-label="UK Wind Generation Forecast vs Outturn Chart">
                       {/* Grid background lines */}
                       {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
                         const y = 30 + (1 - pct) * 280;
@@ -628,7 +750,7 @@ export function App() {
                             key={`fdot-${idx}`}
                             cx={x}
                             cy={y}
-                            r={isSelected ? '6' : '3.5'}
+                            r={isSelected ? 6 : 3.5}
                             fill="#EAAA00"
                             stroke="#3A0F34"
                             strokeWidth="2"
@@ -646,7 +768,7 @@ export function App() {
                             key={`adot-${idx}`}
                             cx={x}
                             cy={y}
-                            r={isSelected ? '6' : '3.5'}
+                            r={isSelected ? 6 : 3.5}
                             fill="#3A0F34"
                             stroke="#DDE3E8"
                             strokeWidth="1.5"
@@ -663,7 +785,7 @@ export function App() {
                     <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b-2 border-[#DDE3E8]/20 gap-3">
                       <div>
                         <div className="text-[10px] text-[#EAAA00] uppercase font-bold tracking-widest">
-                          [ ACTIVE_INTERVAL_SCRUBBER // HOUR_{String(activeObs.delivery_hour).padStart(2, '0')}:00_UTC ]
+                          [ ACTIVE INTERVAL SCRUBBER | HOUR {String(activeObs.delivery_hour).padStart(2, '0')}:00 UTC ]
                         </div>
                         <div className="font-display font-bold text-xl text-white mt-0.5">
                           DELIVERY INTERVAL {activeObs.delivery_date} @ {String(activeObs.delivery_hour).padStart(2, '0')}:00
@@ -676,26 +798,26 @@ export function App() {
                           onClick={() => setActiveSection('inspector')}
                           className="px-3 py-1.5 bg-[#EAAA00] text-[#3A0F34] text-xs font-bold brutal-btn"
                         >
-                          [ INTERROGATE_VINTAGES ]
+                          [ INTERROGATE VINTAGES ]
                         </button>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 text-xs">
                       <div>
-                        <span className="text-slate-300 block">FORECAST_0900:</span>
+                        <span className="text-slate-300 block">FORECAST 09:00:</span>
                         <span className="font-display font-bold text-lg text-[#EAAA00]">
                           {activeObs.forecast_mw !== null ? `${activeObs.forecast_mw.toFixed(1)} MW` : 'MISSING'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-300 block">SETTLED_OUTTURN:</span>
+                        <span className="text-slate-300 block">SETTLED OUTTURN:</span>
                         <span className="font-display font-bold text-lg text-white">
                           {activeObs.actual_mw !== null ? `${activeObs.actual_mw.toFixed(1)} MW` : 'MISSING'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-300 block">SIGNED_ERROR (F - A):</span>
+                        <span className="text-slate-300 block">SIGNED ERROR (F - A):</span>
                         <span
                           className={`font-display font-bold text-lg ${
                             (activeObs.error_mw ?? 0) >= 0 ? 'text-[#EAAA00]' : 'text-purple-300'
@@ -707,9 +829,9 @@ export function App() {
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-300 block">AUDIT_STATUS:</span>
+                        <span className="text-slate-300 block">AUDIT STATUS:</span>
                         <span className="inline-block mt-1 font-bold px-2 py-0.5 bg-white text-[#3A0F34] uppercase text-[10px]">
-                          [{activeObs.status}]
+                          [{activeObs.status.replace('_', ' ')}]
                         </span>
                       </div>
                     </div>
@@ -731,7 +853,7 @@ export function App() {
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-[#3A0F34]">TARGET_HOUR:</span>
+                    <span className="text-xs font-bold text-[#3A0F34]">TARGET HOUR:</span>
                     <select
                       value={selectedHour}
                       onChange={(e) => setSelectedHour(Number(e.target.value))}
@@ -747,20 +869,20 @@ export function App() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Left 8 Cols: Historical Vintages Table */}
+                  {/* Historical Vintages Table */}
                   <div className="lg:col-span-8 bg-white border-2 border-[#3A0F34] p-5 brutal-shadow">
                     <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-3 mb-4">
                       <span className="font-bold text-xs uppercase text-[#3A0F34]">
-                        [ PUBLISHED_VINTAGES_CHRONOLOGY: {selectedDate} @ {String(selectedHour).padStart(2, '0')}:00 ]
+                        [ PUBLISHED VINTAGES CHRONOLOGY: {selectedDate} @ {String(selectedHour).padStart(2, '0')}:00 ]
                       </span>
                       <span className="text-[11px] font-bold text-slate-500">
-                        {historyItems.length} REVISIONS_RECORDED
+                        {historyItems.length} REVISIONS RECORDED
                       </span>
                     </div>
 
                     {historyLoading ? (
                       <div className="text-center py-8 text-xs font-bold text-[#3A0F34]">
-                        [ LOADING_VINTAGE_AUDIT_LOG... ]
+                        [ LOADING VINTAGE AUDIT LOG... ]
                       </div>
                     ) : historyItems.length === 0 ? (
                       <div className="text-center py-8 text-xs font-bold text-slate-500">
@@ -771,11 +893,11 @@ export function App() {
                         <table className="w-full text-left text-xs">
                           <thead className="bg-[#DDE3E8] text-[#3A0F34] border-b-2 border-[#3A0F34]">
                             <tr>
-                              <th className="py-2 px-3 font-bold">PUBLISH_TIME (UTC)</th>
+                              <th className="py-2 px-3 font-bold">PUBLISH TIME (UTC)</th>
                               <th className="py-2 px-3 font-bold text-right">FORECAST (MW)</th>
-                              <th className="py-2 px-3 font-bold text-right">LEAD_TIME</th>
+                              <th className="py-2 px-3 font-bold text-right">LEAD TIME</th>
                               <th className="py-2 px-3 font-bold text-center">ELIGIBILITY</th>
-                              <th className="py-2 px-3 font-bold text-center">DECISION_STATUS</th>
+                              <th className="py-2 px-3 font-bold text-center">DECISION STATUS</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y-2 divide-slate-100">
@@ -804,14 +926,14 @@ export function App() {
                                     </span>
                                   ) : (
                                     <span className="px-1.5 py-0.5 border border-rose-800 bg-rose-100 text-[10px] font-bold text-rose-800">
-                                      [VOID_POST_GATE]
+                                      [VOID POST GATE]
                                     </span>
                                   )}
                                 </td>
                                 <td className="py-2.5 px-3 text-center">
                                   {item.is_selected ? (
                                     <span className="px-2 py-0.5 bg-[#3A0F34] text-[#EAAA00] text-[10px] font-bold">
-                                      [★ ACTIVE_ORDER]
+                                      [★ ACTIVE ORDER]
                                     </span>
                                   ) : item.is_eligible ? (
                                     <span className="text-slate-400 text-[10px]">SUPERSEDED</span>
@@ -827,10 +949,10 @@ export function App() {
                     )}
                   </div>
 
-                  {/* Right 4 Cols: Why This Vintage Was Chosen (Opinionated Desk Memo) */}
+                  {/* Right 4 Cols: Desk Memo */}
                   <div className="lg:col-span-4 bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow space-y-4">
                     <span className="text-xs font-bold text-[#EAAA00] uppercase tracking-widest block">
-                      [ GATE_CLOSURE_POLICY_MEMO ]
+                      [ GATE CLOSURE POLICY MEMO ]
                     </span>
 
                     <h3 className="font-display font-bold text-lg text-white">
@@ -876,71 +998,77 @@ export function App() {
                     </p>
                   </div>
                   <div className="text-xs font-bold text-[#3A0F34]">
-                    [ 744_HOURS_ANALYZED // JAN_2026 ]
+                    [ 744 HOURS ANALYZED | JAN 2026 ]
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Left 7 Cols: Diurnal 24h Bar Chart */}
+                  {/* Diurnal 24h Bar Chart */}
                   <div className="lg:col-span-7 bg-white border-2 border-[#3A0F34] p-5 brutal-shadow">
                     <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-3 mb-4">
                       <span className="font-bold text-xs uppercase text-[#3A0F34]">
-                        [ MEAN_ERROR_BY_HOUR_OF_DAY (00:00 - 23:00) ]
+                        [ MEAN ERROR BY HOUR OF DAY (00:00 - 23:00 UTC) ]
                       </span>
                       <span className="text-[10px] font-bold bg-[#EAAA00] text-[#3A0F34] px-1.5 py-0.5">
-                        DIURNAL_SIGNATURE
+                        DIURNAL SIGNATURE
                       </span>
                     </div>
 
-                    <div className="space-y-2 pt-2">
-                      {hourlyProfiles.map((hp) => {
-                        const err = hp.mean_error_mw;
-                        const isPos = err >= 0;
-                        const maxAbs = 600;
-                        const widthPct = Math.min(100, (Math.abs(err) / maxAbs) * 100);
+                    {hourlyProfiles.length === 0 ? (
+                      <div className="text-center py-12 text-xs font-bold text-slate-500">
+                        [ COMPUTING 24-HOUR DIURNAL ERROR SIGNATURE... ]
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pt-2">
+                        {hourlyProfiles.map((hp) => {
+                          const err = hp.mean_error_mw ?? hp.bias_mw ?? 0;
+                          const isPos = err >= 0;
+                          const maxAbs = 650;
+                          const widthPct = Math.min(100, (Math.abs(err) / maxAbs) * 100);
 
-                        return (
-                          <div key={`hp-${hp.hour}`} className="flex items-center text-xs">
-                            <span className="w-12 font-bold text-slate-600 shrink-0">
-                              {String(hp.hour).padStart(2, '0')}:00
-                            </span>
+                          return (
+                            <div key={`hp-${hp.hour}`} className="flex items-center text-xs">
+                              <span className="w-12 font-bold text-slate-600 shrink-0">
+                                {String(hp.hour).padStart(2, '0')}:00
+                              </span>
 
-                            <div className="flex-1 flex items-center bg-[#DDE3E8] h-5 border border-[#3A0F34] relative">
-                              {/* Center zero mark */}
-                              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#3A0F34] z-10" />
+                              <div className="flex-1 flex items-center bg-[#DDE3E8] h-5 border border-[#3A0F34] relative">
+                                {/* Center zero mark */}
+                                <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#3A0F34] z-10" />
 
-                              {/* Bar */}
-                              {isPos ? (
-                                <div
-                                  style={{ left: '50%', width: `${widthPct / 2}%` }}
-                                  className="absolute top-0 bottom-0 bg-[#EAAA00] border-r border-[#3A0F34]"
-                                />
-                              ) : (
-                                <div
-                                  style={{ right: '50%', width: `${widthPct / 2}%` }}
-                                  className="absolute top-0 bottom-0 bg-[#3A0F34] border-l border-[#3A0F34]"
-                                />
-                              )}
+                                {/* Bar */}
+                                {isPos ? (
+                                  <div
+                                    style={{ left: '50%', width: `${widthPct / 2}%` }}
+                                    className="absolute top-0 bottom-0 bg-[#EAAA00] border-r border-[#3A0F34]"
+                                  />
+                                ) : (
+                                  <div
+                                    style={{ right: '50%', width: `${widthPct / 2}%` }}
+                                    className="absolute top-0 bottom-0 bg-[#3A0F34] border-l border-[#3A0F34]"
+                                  />
+                                )}
+                              </div>
+
+                              <span
+                                className={`w-24 text-right font-bold ml-2 shrink-0 ${
+                                  isPos ? 'text-[#EAAA00]' : 'text-[#3A0F34]'
+                                }`}
+                              >
+                                {isPos ? `+${err.toFixed(1)}` : err.toFixed(1)} MW
+                              </span>
                             </div>
-
-                            <span
-                              className={`w-20 text-right font-bold ml-2 shrink-0 ${
-                                isPos ? 'text-[#EAAA00]' : 'text-[#3A0F34]'
-                              }`}
-                            >
-                              {isPos ? `+${err.toFixed(1)}` : err.toFixed(1)} MW
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Right 5 Cols: Error Distribution & Analytical Diagnosis */}
+                  {/* Analytical Diagnosis */}
                   <div className="lg:col-span-5 space-y-6">
                     <div className="bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow">
                       <span className="text-xs font-bold text-[#EAAA00] uppercase tracking-widest block mb-2">
-                        [ OPINIONATED_DESK_DIAGNOSIS ]
+                        [ OPINIONATED DESK DIAGNOSIS ]
                       </span>
                       <h3 className="font-display font-bold text-base text-white">
                         THE EVENING OVERFORECAST TRAP
@@ -949,14 +1077,14 @@ export function App() {
                         Numerical weather prediction consistently overforecasts wind outturn during peak evening demand hours (17:00 - 21:00 UTC). When evening wind drops faster than modeled, balancing margins compress and power prices spike.
                       </p>
                       <div className="mt-4 pt-3 border-t-2 border-[#DDE3E8]/20 flex justify-between text-xs">
-                        <span className="text-slate-300">SYSTEMATIC_SKEW:</span>
+                        <span className="text-slate-300">SYSTEMATIC SKEW:</span>
                         <span className="font-bold text-[#EAAA00]">+239.4 MW OVERESTIMATED</span>
                       </div>
                     </div>
 
                     <div className="bg-white border-2 border-[#3A0F34] p-5 brutal-shadow">
                       <span className="text-xs font-bold text-[#3A0F34] uppercase tracking-widest block mb-2">
-                        [ RISK_DISCLAIMER_NOTICE ]
+                        [ RISK DISCLAIMER NOTICE ]
                       </span>
                       <p className="text-xs text-slate-600 leading-relaxed">
                         WindSight isolates physical wind outturn and day-ahead forecast feeds from Elexon BMRS. This platform does not incorporate imbalance cash-out prices, system demand curves, or financial trading losses because Elexon outturn feeds do not furnish procurement volumes.
@@ -986,10 +1114,10 @@ export function App() {
                       onChange={(e) => setStatusFilter(e.target.value)}
                       className="border-2 border-[#3A0F34] bg-white px-2 py-1 text-xs font-bold brutal-shadow-sm"
                     >
-                      <option value="all">ALL_STATUSES</option>
-                      <option value="matched">MATCHED_ONLY</option>
-                      <option value="missing_forecast">MISSING_FORECAST</option>
-                      <option value="missing_actual">MISSING_ACTUAL</option>
+                      <option value="all">ALL STATUSES</option>
+                      <option value="matched">MATCHED ONLY</option>
+                      <option value="missing_forecast">MISSING FORECAST</option>
+                      <option value="missing_actual">MISSING ACTUAL</option>
                     </select>
 
                     <button
@@ -997,7 +1125,7 @@ export function App() {
                       onClick={triggerExport}
                       className="px-4 py-1.5 bg-[#EAAA00] text-[#3A0F34] text-xs font-bold brutal-btn flex items-center space-x-1"
                     >
-                      <span>[ DUMP_AUDIT_CSV ]</span>
+                      <span>[ EXPORT AUDIT CSV ]</span>
                     </button>
                   </div>
                 </div>
@@ -1068,7 +1196,7 @@ export function App() {
                                   : 'bg-rose-100 text-rose-800 border-rose-800'
                               }`}
                             >
-                              [{obs.status}]
+                              [{obs.status.replace('_', ' ')}]
                             </span>
                           </td>
                         </tr>
@@ -1082,14 +1210,208 @@ export function App() {
         )}
       </main>
 
-      {/* FOOTER */}
-      <footer className="border-t-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] p-4 text-xs font-mono mt-12">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
-          <div>
-            <span className="font-display font-bold text-[#EAAA00]">WINDSIGHT</span> // UK POWER DISPATCH TELETYPE
+      {/* 6. CONTACT MODAL */}
+      {contactOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-[#3A0F34] p-6 max-w-lg w-full brutal-shadow space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-3">
+              <span className="font-bold text-xs uppercase text-[#3A0F34]">
+                [ TRADING DESK COMMUNICATIONS ]
+              </span>
+              <button
+                type="button"
+                onClick={() => setContactOpen(false)}
+                className="text-xs font-bold text-rose-800 hover:text-black cursor-pointer"
+              >
+                [ CLOSE ✕ ]
+              </button>
+            </div>
+
+            <div>
+              <h3 className="font-display font-bold text-xl text-[#3A0F34]">
+                DIRECT CONTACT: HARSHIT BAGGA
+              </h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Lead Systems & Energy Analytics Engineer. For utility pilot integrations or technical audits:
+              </p>
+              <div className="text-xs font-bold text-[#EAAA00] bg-[#3A0F34] px-3 py-1.5 mt-2 inline-block">
+                harshitbagga34@gmail.com
+              </div>
+            </div>
+
+            {contactSubmitted ? (
+              <div className="bg-[#DDE3E8] border border-[#3A0F34] p-4 text-xs space-y-2">
+                <div className="font-bold text-[#3A0F34]">[ DISPATCH NOTE COMPILED ]</div>
+                <p className="text-slate-600">
+                  Your mail client has been opened with your inquiry formatted to harshitbagga34@gmail.com.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactSubmitted(false);
+                    setContactOpen(false);
+                  }}
+                  className="px-3 py-1 bg-[#3A0F34] text-white text-xs font-bold brutal-btn"
+                >
+                  [ RETURN TO TELETYPE ]
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleContactSubmit} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">YOUR NAME</label>
+                  <input
+                    type="text"
+                    required
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="e.g. Eleanor Vance"
+                    className="w-full border-2 border-[#3A0F34] p-2 focus:ring-2 focus:ring-[#EAAA00] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">YOUR EMAIL</label>
+                  <input
+                    type="email"
+                    required
+                    value={contactSenderEmail}
+                    onChange={(e) => setContactSenderEmail(e.target.value)}
+                    placeholder="e.g. trading@ukutility.co.uk"
+                    className="w-full border-2 border-[#3A0F34] p-2 focus:ring-2 focus:ring-[#EAAA00] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ORGANIZATION</label>
+                  <input
+                    type="text"
+                    value={contactOrg}
+                    onChange={(e) => setContactOrg(e.target.value)}
+                    placeholder="e.g. Day-Ahead Trading Desk"
+                    className="w-full border-2 border-[#3A0F34] p-2 focus:ring-2 focus:ring-[#EAAA00] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">DISPATCH MESSAGE</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={contactMsg}
+                    onChange={(e) => setContactMsg(e.target.value)}
+                    placeholder="Specify inquiry, data audit question, or deployment scope..."
+                    className="w-full border-2 border-[#3A0F34] p-2 focus:ring-2 focus:ring-[#EAAA00] outline-none"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setContactOpen(false)}
+                    className="px-3 py-1.5 bg-white border border-[#3A0F34] font-bold text-slate-600"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-[#EAAA00] text-[#3A0F34] font-bold brutal-btn"
+                  >
+                    [ DISPATCH TO HARSHIT BAGGA ]
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
-          <div className="text-slate-300 text-[11px]">
-            STRICT_PALETTE: #DDE3E8 (70%) | #3A0F34 (20%) | #EAAA00 (10%) | NO_GRADIENTS | 2PX_SOLID_BORDERS
+        </div>
+      )}
+
+      {/* 7. PRIVACY POLICY MODAL */}
+      {privacyOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-[#3A0F34] p-6 max-w-xl w-full brutal-shadow space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-3">
+              <span className="font-bold text-xs uppercase text-[#3A0F34]">
+                [ TRANSPARENCY & PRIVACY NOTICE ]
+              </span>
+              <button
+                type="button"
+                onClick={() => setPrivacyOpen(false)}
+                className="text-xs font-bold text-rose-800 hover:text-black cursor-pointer"
+              >
+                [ CLOSE ✕ ]
+              </button>
+            </div>
+
+            <h3 className="font-display font-bold text-lg text-[#3A0F34]">
+              DATA HANDLING & OPERATIONAL PRIVACY
+            </h3>
+
+            <div className="space-y-3 text-xs text-slate-700 leading-relaxed font-sans">
+              <p>
+                <strong>1. Permitted Public Datasets:</strong> WindSight consumes strictly open, official national electricity market telemetry from Elexon BMRS (FUELHH half-hourly generation outturns and WINDFOR day-ahead wind forecasts). No proprietary trading bids or commercial market transactions are gathered.
+              </p>
+              <p>
+                <strong>2. Zero Personal Tracker Cookies:</strong> This application operates strictly as a zero-surveillance analytical console. No tracking pixels, advertiser trackers, or sellable behavioral dossiers are maintained.
+              </p>
+              <p>
+                <strong>3. Regulatory Compliance:</strong> Engineered in conformity with UK REMIT directives and open grid transparency principles.
+              </p>
+              <p>
+                <strong>4. Direct Contact:</strong> For security reports or inquiries, email Lead Engineer Harshit Bagga at <strong className="text-[#3A0F34]">harshitbagga34@gmail.com</strong>.
+              </p>
+            </div>
+
+            <div className="pt-2 text-right">
+              <button
+                type="button"
+                onClick={() => setPrivacyOpen(false)}
+                className="px-4 py-1.5 bg-[#3A0F34] text-white text-xs font-bold brutal-btn"
+              >
+                [ ACKNOWLEDGE ]
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. FOOTER WITH HARSHIT BAGGA SIGNATURE */}
+      <footer className="border-t-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] p-6 text-xs font-mono mt-12">
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="font-display font-black text-base text-[#EAAA00]">WINDSIGHT</span>
+              <span className="text-slate-400">|</span>
+              <span className="text-slate-200">UK POWER DISPATCH TELETYPE</span>
+            </div>
+            <div className="text-slate-300 text-[11px]">
+              Engineered &amp; Authored by <strong className="text-[#EAAA00]">Harshit Bagga</strong>
+            </div>
+            <div className="text-slate-400 text-[10px]">
+              Direct Inquiries: <a href="mailto:harshitbagga34@gmail.com" className="underline hover:text-white">harshitbagga34@gmail.com</a>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <button
+              type="button"
+              onClick={() => setContactOpen(true)}
+              className="text-[#EAAA00] hover:text-white underline font-bold"
+            >
+              [ CONTACT DESK ]
+            </button>
+            <span className="text-slate-500">|</span>
+            <button
+              type="button"
+              onClick={() => setPrivacyOpen(true)}
+              className="text-slate-300 hover:text-white underline"
+            >
+              [ PRIVACY POLICY ]
+            </button>
+            <span className="text-slate-500">|</span>
+            <div className="border border-[#EAAA00] px-2 py-1 text-[10px] text-[#EAAA00] font-bold">
+              [ VERIFIED ARCHITECTURE: HARSHIT BAGGA ]
+            </div>
           </div>
         </div>
       </footer>
@@ -1097,4 +1419,11 @@ export function App() {
   );
 }
 
-export default App;
+// Wrap with ErrorBoundary as default export
+export default function AppWithBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}

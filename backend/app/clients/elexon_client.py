@@ -11,6 +11,12 @@ logger = logging.getLogger(__name__)
 class ElexonClient:
     """Client for Elexon BMRS API v1 to fetch FUELHH and WINDFOR streams."""
 
+    # Class-level circuit breaker state shared across client instances
+    _failure_count: int = 0
+    _circuit_open_until: float = 0.0
+    _failure_threshold: int = 5
+    _circuit_reset_timeout: float = 30.0
+
     def __init__(
         self,
         base_url: Optional[str] = None,
@@ -36,7 +42,18 @@ class ElexonClient:
     def _request_with_retry(
         self, endpoint: str, params: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Execute HTTP GET request with exponential backoff retry logic."""
+        """Execute HTTP GET request with circuit breaker and exponential backoff retry logic."""
+        now = time.time()
+        if now < self._circuit_open_until:
+            wait_remaining = int(self._circuit_open_until - now)
+            logger.error(
+                "Circuit breaker is OPEN. Fast-failing Elexon API request.",
+                extra={"endpoint": endpoint, "wait_remaining_seconds": wait_remaining},
+            )
+            raise RuntimeError(
+                f"CIRCUIT_BREAKER_OPEN: Elexon BMRS upstream is temporarily quarantined due to consecutive failures. Circuit resets in {wait_remaining}s."
+            )
+
         url = f"{self.base_url}{endpoint}"
         last_exception: Optional[Exception] = None
 
@@ -65,6 +82,8 @@ class ElexonClient:
                         )
                         records = []
 
+                    # Success: reset circuit failure counter
+                    ElexonClient._failure_count = 0
                     logger.info(
                         "Elexon API request succeeded",
                         extra={"url": url, "record_count": len(records)},
@@ -97,6 +116,20 @@ class ElexonClient:
                 )
                 if attempt < self.max_retries:
                     time.sleep(wait_time)
+
+        # Increment consecutive failure count and check circuit trip
+        ElexonClient._failure_count += 1
+        if ElexonClient._failure_count >= ElexonClient._failure_threshold:
+            ElexonClient._circuit_open_until = (
+                time.time() + ElexonClient._circuit_reset_timeout
+            )
+            logger.critical(
+                "Circuit breaker TRIPPED! Elexon upstream failed consecutively. Quarantining.",
+                extra={
+                    "consecutive_failures": ElexonClient._failure_count,
+                    "quarantine_duration": ElexonClient._circuit_reset_timeout,
+                },
+            )
 
         logger.error(
             "Elexon API request permanently failed after retries",
