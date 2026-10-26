@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, Component, ErrorInfo, ReactNode } from 'react';
+import { FarmBackground } from './components/FarmBackground';
 
 // API Base configuration
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -192,8 +193,10 @@ export function App() {
   const [selectedHour, setSelectedHour] = useState<number>(14);
   const [stampActive, setStampActive] = useState<boolean>(true);
 
-  // Cool Interactive Wind Turbine & Gust Simulation State
+  // Cool Interactive Wind Turbine & Gust Simulation State with Smooth Aerodynamic Deceleration
   const [gustActive, setGustActive] = useState<boolean>(false);
+  const [gustColorActive, setGustColorActive] = useState<boolean>(false);
+  const [spinSpeed, setSpinSpeed] = useState<number>(6.0); // duration in seconds
   const [gustCount, setGustCount] = useState<number>(0);
   const [windVelocity, setWindVelocity] = useState<number>(11.4);
   const [rotorRpm, setRotorRpm] = useState<number>(14.8);
@@ -264,24 +267,59 @@ export function App() {
     document.title = `WindSight — [ ${titles[activeSection]} ] | Harshit Bagga`;
   }, [activeSection, is404]);
 
-  // Trigger Kinetic Offshore Wind Gust Animation
+  // Trigger Kinetic Offshore Wind Gust Animation with Smooth Deceleration & Gentle Color Fade
   const triggerOffshoreGust = () => {
     if (gustActive) return;
     setGustActive(true);
+    setGustColorActive(true);
     setGustCount((c) => c + 1);
 
-    // Randomize gust spike metrics
-    const gustSpeed = Number((18.5 + Math.random() * 6).toFixed(1));
-    const gustRpm = Number((24.0 + Math.random() * 7).toFixed(1));
-    setWindVelocity(gustSpeed);
-    setRotorRpm(gustRpm);
+    // Gale Force Peak
+    const peakSpeed = Number((21.2 + Math.random() * 4).toFixed(1));
+    const peakRpm = Number((27.5 + Math.random() * 4).toFixed(1));
+    setWindVelocity(peakSpeed);
+    setRotorRpm(peakRpm);
+    setSpinSpeed(0.35); // Rapid gale spin
 
-    // After 2.4 seconds, smoothly decelerate back to calm cruising speed
+    // After 2.0s of full gale, begin smooth physical deceleration in stages:
     setTimeout(() => {
+      // Streamlines cease, card color begins its 3-second gentle fade
       setGustActive(false);
-      setWindVelocity(11.4);
-      setRotorRpm(14.8);
-    }, 2400);
+      setGustColorActive(false);
+
+      // Deceleration Stage 1: 0.85s spin
+      setSpinSpeed(0.85);
+      setWindVelocity(18.5);
+      setRotorRpm(22.8);
+
+      setTimeout(() => {
+        // Deceleration Stage 2: 1.6s spin
+        setSpinSpeed(1.6);
+        setWindVelocity(15.8);
+        setRotorRpm(19.4);
+
+        setTimeout(() => {
+          // Deceleration Stage 3: 2.8s spin
+          setSpinSpeed(2.8);
+          setWindVelocity(13.6);
+          setRotorRpm(17.0);
+
+          setTimeout(() => {
+            // Deceleration Stage 4: 4.4s spin
+            setSpinSpeed(4.4);
+            setWindVelocity(12.2);
+            setRotorRpm(15.6);
+
+            setTimeout(() => {
+              // Back to smooth continuous idle cruising: 6.0s spin
+              setSpinSpeed(6.0);
+              setWindVelocity(11.4);
+              setRotorRpm(14.8);
+            }, 900);
+          }, 800);
+        }, 750);
+      }, 700);
+    }, 2000);
   };
 
   // Fetch Dashboard & Forecast observations
@@ -423,9 +461,14 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#DDE3E8] text-[#141217] flex flex-col font-mono selection:bg-[#EAAA00] selection:text-[#3A0F34]">
-      {/* 1. TOP TELETYPE PROTOCOL HEADER */}
-      <header className="border-b-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] px-4 py-3 select-none">
+    <div className="min-h-screen bg-[#DDE3E8] text-[#141217] flex flex-col font-mono selection:bg-[#EAAA00] selection:text-[#3A0F34] relative">
+      {/* CONTINUOUS ANIMATED FARM BACKGROUND (ANIMATED ANIMALS, BLINKING EYES, SWAYING GRASS, BARN, WINDMILL) */}
+      <FarmBackground />
+
+      {/* CONTENT LAYER */}
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {/* 1. TOP TELETYPE PROTOCOL HEADER */}
+        <header className="border-b-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] px-4 py-3 select-none">
         <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-3">
             <span
@@ -684,10 +727,12 @@ export function App() {
                 <div
                   onClick={triggerOffshoreGust}
                   title="Click to inject an offshore wind gust!"
-                  className={`cursor-pointer select-none border-4 border-[#3A0F34] p-4 text-center transition-all brutal-btn relative ${
-                    gustActive
-                      ? 'bg-[#EAAA00] text-[#3A0F34] scale-105'
-                      : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
+                  style={{
+                    backgroundColor: gustColorActive ? '#EAAA00' : '#FFFFFF',
+                    transition: 'background-color 3.2s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.2s ease',
+                  }}
+                  className={`cursor-pointer select-none border-4 border-[#3A0F34] p-4 text-center transition-all brutal-btn relative text-[#3A0F34] ${
+                    gustActive ? 'scale-105' : 'hover:bg-[#DDE3E8]'
                   }`}
                 >
                   <div className="flex items-center space-x-4">
@@ -702,8 +747,14 @@ export function App() {
                         {/* Nacelle hub center at (50, 45) */}
                         <rect x="44" y="40" width="12" height="10" rx="2" fill="#EAAA00" stroke="#3A0F34" strokeWidth="2" />
 
-                        {/* Rotating 3-Blade Propeller */}
-                        <g className={gustActive ? 'turbine-rotor-gale' : 'turbine-rotor-idle'} style={{ transformOrigin: '50px 45px' }}>
+                        {/* Rotating 3-Blade Propeller with Smooth Aerodynamic Deceleration */}
+                        <g
+                          style={{
+                            animation: `turbine-spin ${spinSpeed}s linear infinite`,
+                            transformOrigin: '50px 45px',
+                            transition: 'all 0.6s ease-out',
+                          }}
+                        >
                           {/* Blade 1 (Up) */}
                           <path d="M50,45 C48,25 45,5 50,0 C55,5 52,25 50,45 Z" fill="#3A0F34" />
                           {/* Blade 2 (120 deg) */}
@@ -1386,13 +1437,13 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Table with stable scrollbar without flickering */}
+                  {/* Table with stable layout without flickering scrollbars */}
                   <div className="bg-white border-2 border-[#3A0F34] brutal-shadow teletype-table-container">
-                    <table className="w-full text-left text-xs font-mono min-w-full">
+                    <table className="w-full text-left text-xs font-mono min-w-full table-fixed">
                       <thead className="bg-[#DDE3E8] text-[#3A0F34] border-b-2 border-[#3A0F34]">
                         <tr>
                           <th
-                            className="py-2.5 px-3 font-bold cursor-pointer hover:bg-slate-300"
+                            className="w-[18%] py-2.5 px-3 font-bold cursor-pointer hover:bg-slate-300"
                             onClick={() => {
                               setSortField('delivery_hour');
                               setSortAsc(!sortAsc);
@@ -1400,10 +1451,10 @@ export function App() {
                           >
                             HOUR (UTC) {sortField === 'delivery_hour' ? (sortAsc ? '▲' : '▼') : ''}
                           </th>
-                          <th className="py-2.5 px-3 font-bold text-right">FORECAST (MW)</th>
-                          <th className="py-2.5 px-3 font-bold text-right">ACTUAL (MW)</th>
+                          <th className="w-[16%] py-2.5 px-3 font-bold text-right">FORECAST (MW)</th>
+                          <th className="w-[16%] py-2.5 px-3 font-bold text-right">ACTUAL (MW)</th>
                           <th
-                            className="py-2.5 px-3 font-bold text-right cursor-pointer hover:bg-slate-300"
+                            className="w-[17%] py-2.5 px-3 font-bold text-right cursor-pointer hover:bg-slate-300"
                             onClick={() => {
                               setSortField('error_mw');
                               setSortAsc(!sortAsc);
@@ -1412,7 +1463,7 @@ export function App() {
                             ERROR (MW) {sortField === 'error_mw' ? (sortAsc ? '▲' : '▼') : ''}
                           </th>
                           <th
-                            className="py-2.5 px-3 font-bold text-right cursor-pointer hover:bg-slate-300"
+                            className="w-[17%] py-2.5 px-3 font-bold text-right cursor-pointer hover:bg-slate-300"
                             onClick={() => {
                               setSortField('absolute_error_mw');
                               setSortAsc(!sortAsc);
@@ -1420,7 +1471,7 @@ export function App() {
                           >
                             |ERROR| (MW) {sortField === 'absolute_error_mw' ? (sortAsc ? '▲' : '▼') : ''}
                           </th>
-                          <th className="py-2.5 px-3 font-bold text-center">STATUS</th>
+                          <th className="w-[16%] py-2.5 px-3 font-bold text-center">STATUS</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y-2 divide-slate-100">
@@ -1722,6 +1773,7 @@ export function App() {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 }

@@ -149,10 +149,17 @@ body {
   animation: wind-gust-particle 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
 
-/* Stable table scrollbar styling without flickering */
+/* Stable table container without layout shift or temporary scrollbar */
 .teletype-table-container {
-  scrollbar-gutter: stable;
   overflow-x: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+@media (min-width: 768px) {
+  .teletype-table-container {
+    overflow-x: hidden !important;
+  }
 }
 
 .teletype-table-container::-webkit-scrollbar {
@@ -167,4 +174,150 @@ body {
 .teletype-table-container::-webkit-scrollbar-thumb {
   background: #3A0F34;
 }
+
+/* ===================================================
+   CONTINUOUS ANIMATED FARM BACKGROUND STYLES
+   =================================================== */
+
+/* Slow rotating brown farm windmill */
+@keyframes farm-windmill-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-farm-windmill {
+  animation: farm-windmill-spin 12s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+/* Gentle swaying long grass */
+@keyframes farm-grass-sway-1 {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(6deg) skewX(4deg);
+  }
+  100% {
+    transform: rotate(-3deg) skewX(-2deg);
+  }
+}
+
+@keyframes farm-grass-sway-2 {
+  0% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(-7deg) skewX(-5deg);
+  }
+  100% {
+    transform: rotate(4deg) skewX(3deg);
+  }
+}
+
+.animate-grass-1 {
+  animation: farm-grass-sway-1 3.5s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+.animate-grass-2 {
+  animation: farm-grass-sway-2 4.2s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+/* Gentle farm tree swaying */
+@keyframes farm-tree-sway {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(1.8deg) skewX(1deg);
+  }
+  100% {
+    transform: rotate(-1.5deg) skewX(-1deg);
+  }
+}
+
+.animate-tree-sway {
+  animation: farm-tree-sway 5.5s ease-in-out infinite alternate;
+  transform-origin: bottom center;
+}
+
+/* Cartoon Animals: Blinking Eyes */
+@keyframes farm-animal-blink {
+  0%, 90%, 100% {
+    transform: scaleY(1);
+  }
+  94%, 96% {
+    transform: scaleY(0.08);
+  }
+}
+
+.animate-animal-blink {
+  animation: farm-animal-blink 3.8s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+.animate-animal-blink-delay {
+  animation: farm-animal-blink 4.6s ease-in-out 1.2s infinite;
+  transform-origin: center center;
+}
+
+.animate-animal-blink-bunny {
+  animation: farm-animal-blink 3.2s ease-in-out 2s infinite;
+  transform-origin: center center;
+}
+
+/* Cartoon Animals: Subtle breathing bob */
+@keyframes farm-animal-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-animal-bob {
+  animation: farm-animal-bob 3s ease-in-out infinite;
+}
+
+.animate-animal-bob-alt {
+  animation: farm-animal-bob 2.6s ease-in-out 0.8s infinite;
+}
+
+/* Continuous Gentle Farm Breeze */
+@keyframes farm-breeze-drift {
+  0% {
+    transform: translateX(-100%) translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.55;
+  }
+  85% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateX(110vw) translateY(8px);
+    opacity: 0;
+  }
+}
+
+.animate-farm-breeze-1 {
+  animation: farm-breeze-drift 9s linear infinite;
+}
+
+.animate-farm-breeze-2 {
+  animation: farm-breeze-drift 12s linear 3.5s infinite;
+}
+
+.animate-farm-breeze-3 {
+  animation: farm-breeze-drift 15s linear 7s infinite;
+}
+
 
