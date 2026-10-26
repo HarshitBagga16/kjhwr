@@ -1,3 +1,4 @@
+import secrets
 from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -44,7 +45,9 @@ def verify_admin_key(
     """Enforce admin API key authentication if configured."""
     settings = get_settings()
     if settings.ADMIN_API_KEY:
-        if not x_admin_api_key or x_admin_api_key != settings.ADMIN_API_KEY:
+        if not x_admin_api_key or not secrets.compare_digest(
+            x_admin_api_key.encode("utf-8"), settings.ADMIN_API_KEY.encode("utf-8")
+        ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or missing X-Admin-API-Key header",

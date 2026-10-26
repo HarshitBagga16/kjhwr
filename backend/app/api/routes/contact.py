@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +11,10 @@ router = APIRouter(tags=["Communications"])
 
 
 class ContactRequest(BaseModel):
-    name: str
-    email: str
-    organization: Optional[str] = None
-    message: str
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=3, max_length=150)
+    organization: Optional[str] = Field(default=None, max_length=150)
+    message: str = Field(..., min_length=1, max_length=5000)
 
 
 class ContactResponse(BaseModel):

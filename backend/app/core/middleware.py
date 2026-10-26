@@ -22,18 +22,34 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         self.window_seconds = window_seconds
         self.client_records: Dict[str, List[float]] = defaultdict(list)
 
+    def _get_client_ip(self, request: Request) -> str:
+        """Extract real client IP considering forward headers if present."""
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip.strip()
+        return request.client.host if request.client else "unknown"
+
     async def dispatch(self, request: Request, call_next):
-        client_ip = request.client.host if request.client else "unknown"
+        # Health checks, OpenAPI docs bypass rate limiting early
+        if request.url.path in ("/api/health", "/docs", "/openapi.json", "/redoc"):
+            return await call_next(request)
+
+        client_ip = self._get_client_ip(request)
         now = time.time()
         window_start = now - self.window_seconds
 
-        # Prune old timestamps
+        # Prune old timestamps for this client
         history = [t for t in self.client_records[client_ip] if t > window_start]
         self.client_records[client_ip] = history
 
-        # Health checks and docs bypass rate limiting
-        if request.url.path in ("/api/health", "/docs", "/openapi.json", "/redoc"):
-            return await call_next(request)
+        # Periodic dictionary pruning to prevent memory exhaustion
+        if len(self.client_records) > 2000:
+            stale_keys = [k for k, v in self.client_records.items() if not v or max(v) <= window_start]
+            for k in stale_keys:
+                self.client_records.pop(k, None)
 
         if len(history) >= self.max_requests:
             logger.warning(
