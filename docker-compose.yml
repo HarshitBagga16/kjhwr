@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: windsight
+      POSTGRES_PASSWORD: windsight
+      POSTGRES_DB: windsight
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U windsight"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      WINDSIGHT_DATABASE_URL: postgresql://windsight:windsight@db:5432/windsight
+      WINDSIGHT_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80"]'
+      WINDSIGHT_ADMIN_API_KEY: ${WINDSIGHT_ADMIN_API_KEY:-dev-admin-key}
+      WINDSIGHT_LOG_LEVEL: INFO
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

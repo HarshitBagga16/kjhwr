@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+:root {
+  --color-primary: #1e3a5f;
+  --color-accent: #2d7dd2;
+  --color-success: #28a745;
+  --color-warning: #f5a623;
+  --color-error: #dc3545;
+  --color-forecast: #2d7dd2;
+  --color-actual: #28a745;
+  --color-overforecast: #f5a623;
+  --color-underforecast: #6c5ce7;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+code, kbd, samp, pre {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
