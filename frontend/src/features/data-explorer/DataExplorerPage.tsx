@@ -111,8 +111,6 @@ export const DataExplorerPage: React.FC = () => {
               setSelectedDate(d);
               setPage(1);
             }}
-            minDate="2026-01-01"
-            maxDate="2026-01-31"
             disabled={loading}
           />
 

@@ -13,27 +13,30 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
   value,
   onChange,
   label = 'Delivery Date',
-  minDate = '2026-01-01',
-  maxDate = '2026-01-31',
+  minDate = '2020-01-01',
+  maxDate = '2030-12-31',
   disabled = false,
 }) => {
-  const handlePrevDay = () => {
-    const current = new Date(value);
-    current.setDate(current.getDate() - 1);
-    const prevStr = current.toISOString().split('T')[0];
-    if (prevStr >= minDate) {
-      onChange(prevStr);
+  const shiftDay = (delta: number) => {
+    try {
+      const parts = value.split('-').map(Number);
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        const d = new Date(parts[0], parts[1] - 1, parts[2] + delta);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const nextStr = `${y}-${m}-${day}`;
+        if ((!minDate || nextStr >= minDate) && (!maxDate || nextStr <= maxDate)) {
+          onChange(nextStr);
+        }
+      }
+    } catch {
+      // fallback
     }
   };
 
-  const handleNextDay = () => {
-    const current = new Date(value);
-    current.setDate(current.getDate() + 1);
-    const nextStr = current.toISOString().split('T')[0];
-    if (nextStr <= maxDate) {
-      onChange(nextStr);
-    }
-  };
+  const handlePrevDay = () => shiftDay(-1);
+  const handleNextDay = () => shiftDay(1);
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-3">

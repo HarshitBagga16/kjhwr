@@ -10,6 +10,8 @@ class ForecastHistoryItem(BaseModel):
     publish_time: datetime
     generation_mw: float
     is_eligible: bool
+    is_selected: bool = False
+    lead_time_hours: Optional[float] = None
     cutoff_time: datetime
 
 
@@ -67,6 +69,9 @@ class DashboardResponse(BaseModel):
     date: date
     decision_cutoff: datetime
     cutoff_hour: int
+    decision_cutoff_hour: Optional[int] = None
     metrics: ForecastMetrics
-    time_series: List[DashboardTimeSeriesPoint]
+    time_series: List[DashboardTimeSeriesPoint] = []
+    observations: List[ObservationResponse] = []
     coverage: CoverageStats
+    last_ingestion: Optional[datetime] = None

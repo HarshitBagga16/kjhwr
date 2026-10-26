@@ -172,11 +172,28 @@ def get_forecast_history(
             if f.publish_time.tzinfo
             else f.publish_time.replace(tzinfo=timezone.utc)
         )
+        is_sel = (
+            selected is not None
+            and getattr(f, "id", None) == getattr(selected, "id", -1)
+            if getattr(f, "id", None) is not None
+            else (
+                selected is not None
+                and f_pub
+                == (
+                    selected.publish_time
+                    if selected.publish_time.tzinfo
+                    else selected.publish_time.replace(tzinfo=timezone.utc)
+                )
+            )
+        )
+        lead_time = round((dt - f_pub).total_seconds() / 3600.0, 1)
         history_items.append(
             ForecastHistoryItem(
                 publish_time=f_pub,
                 generation_mw=round(f.generation_mw, 2),
                 is_eligible=f_pub <= cutoff_dt,
+                is_selected=is_sel,
+                lead_time_hours=lead_time,
                 cutoff_time=cutoff_dt,
             )
         )

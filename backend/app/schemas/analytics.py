@@ -11,6 +11,8 @@ class AnalyticsSummaryResponse(BaseModel):
     date_to: date
     cutoff_hour: int
     metrics: ForecastMetrics
+    daily_metrics: List[DailyMetrics] = []
+    hourly_profile: List[HourlyProfile] = []
 
 
 class ErrorPoint(BaseModel):
@@ -33,6 +35,7 @@ class ErrorSeriesResponse(BaseModel):
     date_to: date
     cutoff_hour: int
     series: List[ErrorPoint]
+    errors: List[ErrorPoint] = []
 
 
 class DailyMetricsResponse(BaseModel):
@@ -72,6 +75,7 @@ class PaginatedObservationsResponse(BaseModel):
     """Paginated response for observations table."""
 
     total_count: int
+    total: Optional[int] = None
     page: int
     page_size: int
     total_pages: int

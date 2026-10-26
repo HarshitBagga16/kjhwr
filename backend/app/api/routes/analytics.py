@@ -83,12 +83,16 @@ def get_analytics_summary(
 
     observations = _fetch_aligned_for_range(d_from, d_to, hour, db)
     metrics = MetricsService.calculate_metrics(observations)
+    daily_metrics = MetricsService.calculate_daily_metrics(observations)
+    hourly_profile = MetricsService.calculate_hourly_profile(observations)
 
     return AnalyticsSummaryResponse(
         date_from=d_from,
         date_to=d_to,
         cutoff_hour=hour,
         metrics=metrics,
+        daily_metrics=daily_metrics,
+        hourly_profile=hourly_profile,
     )
 
 
@@ -125,6 +129,7 @@ def get_error_series(
         date_to=d_to,
         cutoff_hour=hour,
         series=series,
+        errors=series,
     )
 
 
@@ -219,6 +224,7 @@ def get_paginated_observations(
 
     return PaginatedObservationsResponse(
         total_count=total_count,
+        total=total_count,
         page=page,
         page_size=page_size,
         total_pages=total_pages,

@@ -24,17 +24,37 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   getHealth: () => fetchApi<HealthResponse>('/api/health'),
   getDashboard: (date: string) => fetchApi<DashboardResponse>(`/api/dashboard?date=${date}`),
-  getForecasts: (date: string) => fetchApi<{ observations: AlignedObservation[] }>(`/api/forecasts?date=${date}`),
+  getForecasts: async (date: string): Promise<{ observations: AlignedObservation[] }> => {
+    const res = await fetchApi<AlignedObservation[] | { observations: AlignedObservation[] }>(
+      `/api/forecasts?date=${date}`
+    );
+    if (Array.isArray(res)) {
+      return { observations: res };
+    }
+    return res;
+  },
   getForecastHistory: (startTime: string) =>
     fetchApi<{ history: ForecastHistoryItem[] }>(`/api/forecasts/${encodeURIComponent(startTime)}/history`),
   getAnalyticsSummary: (from: string, to: string) =>
     fetchApi<AnalyticsSummary>(`/api/analytics/summary?from=${from}&to=${to}`),
-  getErrors: (from: string, to: string) =>
-    fetchApi<{ errors: AlignedObservation[] }>(`/api/analytics/errors?from=${from}&to=${to}`),
-  getObservations: (date: string, page: number = 1, pageSize: number = 48) =>
-    fetchApi<ObservationsPaginatedResponse>(
+  getErrors: async (from: string, to: string): Promise<{ errors: AlignedObservation[] }> => {
+    const res = await fetchApi<{ series?: AlignedObservation[]; errors?: AlignedObservation[] }>(
+      `/api/analytics/errors?from=${from}&to=${to}`
+    );
+    const list = res.errors ?? res.series ?? [];
+    return { errors: list };
+  },
+  getObservations: async (date: string, page: number = 1, pageSize: number = 48): Promise<ObservationsPaginatedResponse> => {
+    const res = await fetchApi<{ observations?: AlignedObservation[]; total?: number; total_count?: number; page?: number; page_size?: number }>(
       `/api/analytics/observations?date=${date}&page=${page}&page_size=${pageSize}`
-    ),
+    );
+    return {
+      observations: res.observations ?? [],
+      total: res.total ?? res.total_count ?? 0,
+      page: res.page ?? page,
+      page_size: res.page_size ?? pageSize,
+    };
+  },
   exportCsv: (from: string, to: string) => {
     window.open(`${API_BASE}/api/analytics/export?from=${from}&to=${to}`, '_blank');
   },

@@ -7,7 +7,6 @@ import { ForecastActualChart } from '../../components/charts/ForecastActualChart
 import { ErrorTimeSeriesChart } from '../../components/charts/ErrorTimeSeriesChart';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorDisplay } from '../../components/ui/ErrorDisplay';
-import { EmptyState } from '../../components/ui/EmptyState';
 import { DashboardResponse } from '../../types';
 
 export const DashboardPage: React.FC = () => {
@@ -53,8 +52,6 @@ export const DashboardPage: React.FC = () => {
           <DateSelector
             value={selectedDate}
             onChange={setSelectedDate}
-            minDate="2026-01-01"
-            maxDate="2026-01-31"
             disabled={loading}
           />
           <button
@@ -91,12 +88,42 @@ export const DashboardPage: React.FC = () => {
           onRetry={refetch}
         />
       ) : observations.length === 0 ? (
-        <EmptyState
-          title={`No observations for ${selectedDate}`}
-          message="No aligned forecast or settlement generation records found for this date. Check backend ingestion status."
-          actionText="Select Another Date"
-          onAction={() => setSelectedDate('2026-01-01')}
-        />
+        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center space-y-4">
+          <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-slate-800">
+              No Ingested Records for {selectedDate}
+            </h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+              No aligned forecast or settlement outturn records are stored for this date. The pilot active window is January 2026 (Jan 1 - Jan 31, 2026).
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setSelectedDate('2026-01-15')}
+              className="px-3 py-1.5 rounded text-xs font-mono font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-2xs"
+            >
+              Jump to Jan 15, 2026 (Active Sample)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDate('2026-01-01')}
+              className="px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+            >
+              Jump to Jan 01, 2026
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           {/* KPI Summary Cards Grid */}

@@ -29,7 +29,8 @@ export const AnalyticsPage: React.FC = () => {
         api.getErrors(fromDate, toDate),
       ]);
       setSummaryData(summaryRes);
-      setErrorObservations(errorsRes.errors ?? []);
+      const errList = errorsRes.errors ?? (errorsRes as unknown as { series?: AlignedObservation[] }).series ?? [];
+      setErrorObservations(errList);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch analytics');
     } finally {
@@ -114,7 +115,6 @@ export const AnalyticsPage: React.FC = () => {
             <input
               type="date"
               value={fromDate}
-              min="2026-01-01"
               max={toDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="border border-slate-300 rounded px-2 py-1 bg-white text-slate-800 shadow-2xs focus:ring-1 focus:ring-blue-500"
@@ -124,7 +124,6 @@ export const AnalyticsPage: React.FC = () => {
               type="date"
               value={toDate}
               min={fromDate}
-              max="2026-01-31"
               onChange={(e) => setToDate(e.target.value)}
               className="border border-slate-300 rounded px-2 py-1 bg-white text-slate-800 shadow-2xs focus:ring-1 focus:ring-blue-500"
             />

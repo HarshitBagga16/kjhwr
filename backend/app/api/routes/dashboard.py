@@ -11,6 +11,7 @@ from app.schemas.forecast import (
     CoverageStats,
     DashboardResponse,
     DashboardTimeSeriesPoint,
+    ObservationResponse,
 )
 from app.services.alignment_service import (
     build_aligned_observations,
@@ -99,13 +100,31 @@ def get_dashboard_data(
         coverage_pct=metrics.coverage_pct,
     )
 
+    obs_responses = [
+        ObservationResponse(
+            delivery_start=obs.delivery_start,
+            delivery_date=obs.delivery_date,
+            delivery_hour=obs.delivery_hour,
+            forecast_mw=obs.forecast_mw,
+            actual_mw=obs.actual_mw,
+            error_mw=obs.error_mw,
+            absolute_error_mw=obs.absolute_error_mw,
+            forecast_publish_time=obs.forecast_publish_time,
+            decision_cutoff=obs.decision_cutoff,
+            status=obs.status,
+        )
+        for obs in observations
+    ]
+
     cutoff_dt = get_decision_cutoff(active_date, active_cutoff_hour)
 
     return DashboardResponse(
         date=active_date,
         decision_cutoff=cutoff_dt,
         cutoff_hour=active_cutoff_hour,
+        decision_cutoff_hour=active_cutoff_hour,
         metrics=metrics,
         time_series=time_series,
+        observations=obs_responses,
         coverage=coverage,
     )
