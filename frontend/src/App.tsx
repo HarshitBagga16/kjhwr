@@ -1,24 +1,1099 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from './components/layout/AppLayout';
-import { DashboardPage } from './features/dashboard/DashboardPage';
-import { ForecastsPage } from './features/forecasts/ForecastsPage';
-import { AnalyticsPage } from './features/analytics/AnalyticsPage';
-import { DataExplorerPage } from './features/data-explorer/DataExplorerPage';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// API Base configuration
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+interface AlignedObservation {
+  delivery_start: string;
+  delivery_date: string;
+  delivery_hour: number;
+  forecast_mw: number | null;
+  actual_mw: number | null;
+  error_mw: number | null;
+  absolute_error_mw: number | null;
+  forecast_publish_time: string | null;
+  decision_cutoff: string;
+  status: 'matched' | 'missing_forecast' | 'missing_actual' | 'missing_both';
+}
+
+interface ForecastMetrics {
+  mae_mw: number | null;
+  rmse_mw: number | null;
+  bias_mw: number | null;
+  wape_pct: number | null;
+  mape_pct: number | null;
+  mape_note: string | null;
+  sample_count: number;
+  total_intervals: number;
+  matched_count: number;
+  missing_forecast_count: number;
+  missing_actual_count: number;
+  coverage_pct: number;
+}
+
+interface ForecastHistoryItem {
+  publish_time: string;
+  generation_mw: number;
+  is_eligible: boolean;
+  is_selected: boolean;
+  lead_time_hours: number | null;
+  cutoff_time: string;
+}
+
+interface HourlyProfile {
+  hour: number;
+  mean_error_mw: number;
+  mean_absolute_error_mw: number;
+  sample_count: number;
+}
 
 export function App() {
+  // Operational state
+  const [selectedDate, setSelectedDate] = useState<string>('2026-01-15');
+  const [activeSection, setActiveSection] = useState<'ledger' | 'inspector' | 'diagnostics' | 'raw'>('ledger');
+  const [selectedHour, setSelectedHour] = useState<number>(14);
+  const [stampActive, setStampActive] = useState<boolean>(true);
+
+  // Live Data State
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [observations, setObservations] = useState<AlignedObservation[]>([]);
+  const [metrics, setMetrics] = useState<ForecastMetrics | null>(null);
+  const [historyItems, setHistoryItems] = useState<ForecastHistoryItem[]>([]);
+  const [hourlyProfiles, setHourlyProfiles] = useState<HourlyProfile[]>([]);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState<'delivery_hour' | 'error_mw' | 'absolute_error_mw'>('delivery_hour');
+  const [sortAsc, setSortAsc] = useState<boolean>(true);
+
+  // Fetch Dashboard & Forecast observations
+  const fetchDayData = useCallback(async (dateStr: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/dashboard?date=${dateStr}`);
+      if (!res.ok) {
+        throw new Error(`TELEMETRY_DROP_HTTP_${res.status}: Wire connection rejected.`);
+      }
+      const data = await res.json();
+      const obsList: AlignedObservation[] = data.observations ?? [];
+      setObservations(obsList);
+      setMetrics(data.metrics ?? null);
+      setStampActive(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'TELEMETRY_FAILURE: Wire silent.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch Diurnal Fleet Profile for Analytics
+  const fetchFleetProfile = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/analytics/hourly-profile?from=2026-01-01&to=2026-01-31`);
+      if (res.ok) {
+        const data = await res.json();
+        setHourlyProfiles(data.hourly ?? []);
+      }
+    } catch {
+      // Quiet background failure
+    }
+  }, []);
+
+  // Fetch Historical Vintages for Selected Hour
+  const fetchVintages = useCallback(async (dateStr: string, hour: number) => {
+    setHistoryLoading(true);
+    try {
+      const padHour = String(hour).padStart(2, '0');
+      const isoStart = `${dateStr}T${padHour}:00:00Z`;
+      const res = await fetch(`${API_BASE}/api/forecasts/${encodeURIComponent(isoStart)}/history`);
+      if (res.ok) {
+        const data = await res.json();
+        setHistoryItems(data.history ?? []);
+      } else {
+        setHistoryItems([]);
+      }
+    } catch {
+      setHistoryItems([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDayData(selectedDate);
+    fetchFleetProfile();
+  }, [selectedDate, fetchDayData, fetchFleetProfile]);
+
+  useEffect(() => {
+    fetchVintages(selectedDate, selectedHour);
+  }, [selectedDate, selectedHour, fetchVintages]);
+
+  // Calendar stepper
+  const stepDate = (deltaDays: number) => {
+    try {
+      const parts = selectedDate.split('-').map(Number);
+      const d = new Date(parts[0], parts[1] - 1, parts[2] + deltaDays);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      setSelectedDate(`${y}-${m}-${day}`);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Active observation
+  const activeObs = useMemo(() => {
+    return observations.find((o) => o.delivery_hour === selectedHour) ?? observations[0];
+  }, [observations, selectedHour]);
+
+  // Max generation for scaling SVG chart
+  const maxGen = useMemo(() => {
+    let maxVal = 20000;
+    for (const o of observations) {
+      if (o.forecast_mw && o.forecast_mw > maxVal) maxVal = o.forecast_mw;
+      if (o.actual_mw && o.actual_mw > maxVal) maxVal = o.actual_mw;
+    }
+    return Math.ceil(maxVal / 2000) * 2000;
+  }, [observations]);
+
+  // Filtered & sorted observations for Raw Ledger
+  const displayedObservations = useMemo(() => {
+    let list = [...observations];
+    if (statusFilter !== 'all') {
+      list = list.filter((o) => o.status === statusFilter);
+    }
+    list.sort((a, b) => {
+      const aVal = a[sortField] ?? 0;
+      const bVal = b[sortField] ?? 0;
+      return sortAsc ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
+    });
+    return list;
+  }, [observations, statusFilter, sortField, sortAsc]);
+
+  const triggerExport = () => {
+    window.open(`${API_BASE}/api/analytics/export?from=${selectedDate}&to=${selectedDate}`, '_blank');
+  };
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/forecasts" element={<ForecastsPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/data-explorer" element={<DataExplorerPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <div className="min-h-screen bg-[#DDE3E8] text-[#141217] flex flex-col font-mono selection:bg-[#EAAA00] selection:text-[#3A0F34]">
+      {/* 1. TOP TELETYPE PROTOCOL HEADER */}
+      <header className="border-b-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] px-4 py-3 select-none">
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-3">
+            <span className="font-display font-bold text-base tracking-tighter text-[#EAAA00] uppercase">
+              WINDSIGHT_LEDGER
+            </span>
+            <span className="border border-[#EAAA00]/40 px-2 py-0.5 text-[10px] text-[#EAAA00] font-semibold tracking-wider">
+              [ PROTOCOL: ELEXON_BMRS_LIVE ]
+            </span>
+            <span className="hidden sm:inline text-slate-300">
+              // CUTOFF: 09:00_EUROPE/LONDON
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 text-[11px]">
+            <span className="inline-block w-2 h-2 bg-[#EAAA00] animate-pulse"></span>
+            <span className="text-[#EAAA00] font-bold">GRID_SYNC_OK</span>
+            <span className="text-slate-400">|</span>
+            <span>SYSTEM_TIME: 2026-10-26T12:51:00Z</span>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. OPERATIONAL TELEGRAPH CONTROLS */}
+      <nav className="border-b-2 border-[#3A0F34] bg-[#DDE3E8] px-4 py-2 sticky top-0 z-30">
+        <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Section Mode Pills */}
+          <div className="flex items-center space-x-2 overflow-x-auto py-1">
+            <button
+              type="button"
+              onClick={() => setActiveSection('ledger')}
+              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+                activeSection === 'ledger'
+                  ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
+                  : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
+              }`}
+            >
+              [ 01 // DISPATCH_LEDGER ]
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('inspector')}
+              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+                activeSection === 'inspector'
+                  ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
+                  : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
+              }`}
+            >
+              [ 02 // VINTAGE_DOCKET ]
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('diagnostics')}
+              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+                activeSection === 'diagnostics'
+                  ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
+                  : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
+              }`}
+            >
+              [ 03 // FLEET_DIURNAL ]
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('raw')}
+              className={`px-3 py-1 text-xs uppercase font-bold tracking-wider transition-all brutal-btn ${
+                activeSection === 'raw'
+                  ? 'bg-[#3A0F34] text-[#DDE3E8] shadow-[3px_3px_0px_#EAAA00]'
+                  : 'bg-white text-[#3A0F34] hover:bg-[#DDE3E8]'
+              }`}
+            >
+              [ 04 // RAW_AUDIT_LOG ]
+            </button>
+          </div>
+
+          {/* Stepper & Date Picker */}
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => stepDate(-1)}
+              className="px-2.5 py-1 text-xs font-bold brutal-btn bg-white hover:bg-slate-100"
+              title="Step Day Backward"
+            >
+              [ -1D ]
+            </button>
+
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-white border-2 border-[#3A0F34] px-2 py-1 text-xs font-bold shadow-[2px_2px_0px_#3A0F34] focus:outline-none focus:ring-2 focus:ring-[#EAAA00]"
+            />
+
+            <button
+              type="button"
+              onClick={() => stepDate(1)}
+              className="px-2.5 py-1 text-xs font-bold brutal-btn bg-white hover:bg-slate-100"
+              title="Step Day Forward"
+            >
+              [ +1D ]
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fetchDayData(selectedDate)}
+              disabled={loading}
+              className="px-3 py-1 text-xs font-bold brutal-btn bg-[#EAAA00] text-[#3A0F34] hover:bg-amber-400"
+              title="Poll latest wire"
+            >
+              {loading ? '[ POLLING... ]' : '[ PULL_WIRE ]'}
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* MAIN CONTAINER */}
+      <main className="flex-1 max-w-[1440px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+        {/* 3. HERO SECTION WITH MASSIVE FLUID TYPE & MECHANICAL AUDIT STAMP */}
+        <section className="relative">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left 8 Cols: Unforgiving Headline */}
+            <div className="lg:col-span-8 space-y-4">
+              <div className="inline-block px-2.5 py-1 bg-[#3A0F34] text-[#EAAA00] text-xs font-bold tracking-widest border border-[#3A0F34]">
+                [ 01/20 // NATIONAL_OUTTURN_AUDIT ]
+              </div>
+
+              <h1 className="font-display font-black text-[#3A0F34] leading-[0.88] tracking-[-0.045em] text-[clamp(2.5rem,6.5vw,5.5rem)]">
+                THE WIND FLEET DOESN'T CARE ABOUT YOUR HEDGES.
+              </h1>
+
+              <p className="text-sm sm:text-base font-medium text-[#141217] max-w-2xl leading-relaxed pt-1">
+                Day-ahead wind commitments stamped at 09:00 London gate closure audited against physical Elexon outturn. No post-gate revisions. No modeled excuses. Pure MW delta.
+              </p>
+            </div>
+
+            {/* Right 4 Cols: Mechanical Ink Stamp Delight (Tilted -1.5deg) */}
+            <div className="lg:col-span-4 flex flex-col items-start lg:items-end justify-center pt-2">
+              <div
+                className={`w-full max-w-sm border-2 border-[#3A0F34] bg-white p-5 brutal-shadow-lg transform -rotate-1 transition-all ${
+                  stampActive ? 'ink-stamp-animated' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-2 mb-3">
+                  <span className="text-[11px] font-bold text-[#3A0F34]">
+                    [ AUDIT_RECORD: 2026-JAN ]
+                  </span>
+                  <span className="text-[10px] bg-[#EAAA00] text-[#3A0F34] px-1.5 py-0.5 font-bold">
+                    OFFICIAL_STAMP
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">DELIVERY_DATE:</span>
+                    <span className="font-bold text-[#3A0F34]">{selectedDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">GATE_CLOSURE:</span>
+                    <span className="font-bold text-[#3A0F34]">09:00_EUROPE/LONDON</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">RESOLUTION:</span>
+                    <span className="font-bold text-[#3A0F34]">60M_MEAN_MATCH</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">DISQUALIFICATION:</span>
+                    <span className="font-bold text-rose-800">PUB_TIME &gt; 09:00 = VOID</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t-2 border-dashed border-[#3A0F34] flex items-center justify-between">
+                  <span className="text-[10px] tracking-widest uppercase font-bold text-[#3A0F34]">
+                    GATE_VALIDITY:
+                  </span>
+                  <span className="text-xs font-bold bg-[#3A0F34] text-[#EAAA00] px-2 py-0.5">
+                    POINT_IN_TIME_LOCKED
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 4. ASYMMETRIC TRUTH DELTA KPI STRIP (No 3 equal cards!) */}
+        <section className="space-y-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-[#3A0F34]">
+            [ 02/20 // QUANTIFIED_TRUTH_DELTAS ]
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            {/* Focal Point Card 1: 5 Columns - Brutal Marigold Bias Accent */}
+            <div className="md:col-span-5 bg-[#EAAA00] border-2 border-[#3A0F34] p-5 brutal-shadow transform rotate-[0.5deg]">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold tracking-wider text-[#3A0F34] uppercase">
+                  [ MEAN_FLEET_BIAS ]
+                </span>
+                <span className="text-[10px] bg-[#3A0F34] text-[#DDE3E8] px-2 py-0.5 font-bold">
+                  {metrics?.bias_mw !== null && (metrics?.bias_mw ?? 0) >= 0 ? 'OVERFORECAST' : 'UNDERFORECAST'}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-baseline space-x-2">
+                <span className="font-display font-black text-4xl sm:text-5xl text-[#3A0F34] tracking-tight">
+                  {metrics?.bias_mw !== null && metrics?.bias_mw !== undefined
+                    ? `${metrics.bias_mw > 0 ? '+' : ''}${metrics.bias_mw.toFixed(1)}`
+                    : '--'}
+                </span>
+                <span className="font-bold text-lg text-[#3A0F34]">MW</span>
+              </div>
+
+              <p className="mt-2 text-xs text-[#3A0F34] leading-relaxed font-semibold">
+                Systematic signed error (F - A). Positive MW indicates wind generation fell short of day-ahead promises, driving emergency dispatch in the Balancing Mechanism.
+              </p>
+
+              <div className="mt-3 pt-2 border-t-2 border-[#3A0F34] text-[10px] text-[#3A0F34] flex justify-between font-bold">
+                <span>SAMPLE_N: {metrics?.sample_count ?? 0}</span>
+                <span>SIGN_CONVENTION: [F - A]</span>
+              </div>
+            </div>
+
+            {/* Focal Point Card 2: 4 Columns - Deep Aubergine MAE & RMSE */}
+            <div className="md:col-span-4 bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow">
+              <span className="text-xs font-bold tracking-wider text-[#EAAA00] uppercase">
+                [ VOLUMETRIC_DEVIATION ]
+              </span>
+
+              <div className="mt-3 grid grid-cols-2 gap-4 border-b-2 border-[#DDE3E8]/20 pb-4">
+                <div>
+                  <div className="text-[10px] text-slate-300 font-bold uppercase">MAE (MEAN_ABS)</div>
+                  <div className="font-display font-bold text-2xl text-white mt-1">
+                    {metrics?.mae_mw ? `${metrics.mae_mw.toFixed(1)}` : '--'}
+                    <span className="text-xs font-normal text-slate-300 ml-1">MW</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-300 font-bold uppercase">RMSE (QUADRATIC)</div>
+                  <div className="font-display font-bold text-2xl text-[#EAAA00] mt-1">
+                    {metrics?.rmse_mw ? `${metrics.rmse_mw.toFixed(1)}` : '--'}
+                    <span className="text-xs font-normal text-slate-300 ml-1">MW</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-xs">
+                <span className="text-slate-300">WAPE (VOLUME_WEIGHTED):</span>
+                <span className="font-bold text-white font-mono">
+                  {metrics?.wape_pct !== null && metrics?.wape_pct !== undefined ? `${metrics.wape_pct.toFixed(1)}%` : '--'}
+                </span>
+              </div>
+            </div>
+
+            {/* Focal Point Card 3: 3 Columns - Slate Ground Coverage & Audit Integrity */}
+            <div className="md:col-span-3 bg-white border-2 border-[#3A0F34] p-5 brutal-shadow flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold tracking-wider text-[#3A0F34] uppercase">
+                  [ DATA_INTEGRITY ]
+                </span>
+
+                <div className="mt-3">
+                  <div className="font-display font-black text-3xl text-[#3A0F34]">
+                    {metrics?.coverage_pct ? `${metrics.coverage_pct.toFixed(1)}%` : '0%'}
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-600 mt-0.5">
+                    MATCHED_INTERVALS: {metrics?.matched_count ?? 0} / {metrics?.total_intervals ?? 24}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t-2 border-[#3A0F34] space-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span>DROPPED_ACTUALS:</span>
+                  <span className="font-bold text-rose-700">{metrics?.missing_actual_count ?? 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ORPHAN_FORECASTS:</span>
+                  <span className="font-bold text-amber-700">{metrics?.missing_forecast_count ?? 0}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 5. TAB VIEW CONTAINER */}
+        {error ? (
+          <div className="bg-white border-2 border-[#3A0F34] p-8 brutal-shadow text-center space-y-4">
+            <div className="text-sm font-bold text-rose-700 uppercase">[ WIRE_INTERRUPTION_RECORDED ]</div>
+            <div className="font-display text-xl font-bold text-[#3A0F34]">{error}</div>
+            <p className="text-xs text-slate-600 max-w-md mx-auto">
+              Connection to Elexon BMRS endpoint timed out or failed handshake. Verify local backend process is running on port 8000.
+            </p>
+            <button
+              type="button"
+              onClick={() => fetchDayData(selectedDate)}
+              className="px-4 py-2 bg-[#3A0F34] text-white font-bold text-xs brutal-btn"
+            >
+              [ RETRY_HANDSHAKE ]
+            </button>
+          </div>
+        ) : observations.length === 0 ? (
+          <div className="bg-white border-2 border-[#3A0F34] p-8 brutal-shadow text-center space-y-4">
+            <div className="text-xs font-bold text-amber-600 uppercase">[ NO_INGESTED_LEDGER_FOR_{selectedDate} ]</div>
+            <h2 className="font-display text-2xl font-bold text-[#3A0F34]">
+              NO RECORDINGS FOR THIS SETTLEMENT DATE
+            </h2>
+            <p className="text-xs text-slate-600 max-w-lg mx-auto">
+              The primary pilot demonstration window is seeded with January 2026 data. Select a date within January 2026 to see full Elexon outturn profiles.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedDate('2026-01-15')}
+                className="px-4 py-2 bg-[#EAAA00] text-[#3A0F34] font-bold text-xs brutal-btn"
+              >
+                [ JUMP_JAN_15_2026 ]
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDate('2026-01-01')}
+                className="px-4 py-2 bg-white text-[#3A0F34] font-bold text-xs brutal-btn"
+              >
+                [ JUMP_JAN_01_2026 ]
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* VIEW 01: DISPATCH LEDGER TIME-SERIES */}
+            {activeSection === 'ledger' && (
+              <section className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-[#3A0F34] pb-2 gap-2">
+                  <div>
+                    <h2 className="font-display font-bold text-xl text-[#3A0F34]">
+                      HALF-HOURLY GENERATION OUTTURN VS DAY-AHEAD FORECAST
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Settlement window for {selectedDate}. Forecast locked at 09:00 London gate closure.
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-4 text-xs font-bold">
+                    <span className="flex items-center space-x-1.5">
+                      <span className="w-3.5 h-3.5 border-2 border-[#3A0F34] bg-[#3A0F34]"></span>
+                      <span>OUTTURN_ACTUAL (MW)</span>
+                    </span>
+                    <span className="flex items-center space-x-1.5">
+                      <span className="w-3.5 h-3.5 border-2 border-[#3A0F34] bg-[#EAAA00]"></span>
+                      <span>FORECAST_0900 (MW)</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* SVG Visualizer Canvas with 2px borders & brutal aesthetic */}
+                <div className="bg-white border-2 border-[#3A0F34] p-4 brutal-shadow overflow-x-auto">
+                  <div className="min-w-[700px]">
+                    <svg viewBox="0 0 960 360" className="w-full h-80 overflow-visible">
+                      {/* Grid background lines */}
+                      {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
+                        const y = 30 + (1 - pct) * 280;
+                        const mwLabel = Math.round(pct * maxGen);
+                        return (
+                          <g key={`grid-${idx}`}>
+                            <line x1="50" y1={y} x2="940" y2={y} stroke="#DDE3E8" strokeWidth="1.5" strokeDasharray="3 3" />
+                            <text x="42" y={y + 4} fill="#64748b" fontSize="10" fontFamily="monospace" textAnchor="end">
+                              {mwLabel}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* Hourly vertical guide lines & click targets */}
+                      {observations.map((obs, idx) => {
+                        const x = 60 + idx * 36.5;
+                        const isSelected = obs.delivery_hour === selectedHour;
+                        return (
+                          <g
+                            key={`col-${idx}`}
+                            className="cursor-pointer group"
+                            onClick={() => setSelectedHour(obs.delivery_hour)}
+                          >
+                            <rect
+                              x={x - 18}
+                              y="20"
+                              width="36"
+                              height="300"
+                              fill={isSelected ? '#EAAA00' : 'transparent'}
+                              opacity={isSelected ? 0.25 : 0}
+                              className="group-hover:fill-slate-100 transition-colors"
+                            />
+                            <line
+                              x1={x}
+                              y1="25"
+                              x2={x}
+                              y2="310"
+                              stroke={isSelected ? '#3A0F34' : '#e2e8f0'}
+                              strokeWidth={isSelected ? '2' : '1'}
+                            />
+                            <text
+                              x={x}
+                              y="325"
+                              fill={isSelected ? '#3A0F34' : '#64748b'}
+                              fontSize="10"
+                              fontWeight={isSelected ? 'bold' : 'normal'}
+                              textAnchor="middle"
+                            >
+                              {String(obs.delivery_hour).padStart(2, '0')}:00
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* Actual generation step line */}
+                      <path
+                        d={observations
+                          .map((obs, idx) => {
+                            const x = 60 + idx * 36.5;
+                            const y = 310 - ((obs.actual_mw ?? 0) / maxGen) * 280;
+                            return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          })
+                          .join(' ')}
+                        fill="none"
+                        stroke="#3A0F34"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Forecast line with yellow nodes */}
+                      <path
+                        d={observations
+                          .map((obs, idx) => {
+                            const x = 60 + idx * 36.5;
+                            const y = 310 - ((obs.forecast_mw ?? 0) / maxGen) * 280;
+                            return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          })
+                          .join(' ')}
+                        fill="none"
+                        stroke="#EAAA00"
+                        strokeWidth="2.5"
+                        strokeDasharray="4 4"
+                      />
+
+                      {/* Forecast dots */}
+                      {observations.map((obs, idx) => {
+                        const x = 60 + idx * 36.5;
+                        const y = 310 - ((obs.forecast_mw ?? 0) / maxGen) * 280;
+                        const isSelected = obs.delivery_hour === selectedHour;
+                        return (
+                          <circle
+                            key={`fdot-${idx}`}
+                            cx={x}
+                            cy={y}
+                            r={isSelected ? '6' : '3.5'}
+                            fill="#EAAA00"
+                            stroke="#3A0F34"
+                            strokeWidth="2"
+                          />
+                        );
+                      })}
+
+                      {/* Actual dots */}
+                      {observations.map((obs, idx) => {
+                        const x = 60 + idx * 36.5;
+                        const y = 310 - ((obs.actual_mw ?? 0) / maxGen) * 280;
+                        const isSelected = obs.delivery_hour === selectedHour;
+                        return (
+                          <circle
+                            key={`adot-${idx}`}
+                            cx={x}
+                            cy={y}
+                            r={isSelected ? '6' : '3.5'}
+                            fill="#3A0F34"
+                            stroke="#DDE3E8"
+                            strokeWidth="1.5"
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Interactive Hourly Scrub Inspector Dock */}
+                {activeObs && (
+                  <div className="bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b-2 border-[#DDE3E8]/20 gap-3">
+                      <div>
+                        <div className="text-[10px] text-[#EAAA00] uppercase font-bold tracking-widest">
+                          [ ACTIVE_INTERVAL_SCRUBBER // HOUR_{String(activeObs.delivery_hour).padStart(2, '0')}:00_UTC ]
+                        </div>
+                        <div className="font-display font-bold text-xl text-white mt-0.5">
+                          DELIVERY INTERVAL {activeObs.delivery_date} @ {String(activeObs.delivery_hour).padStart(2, '0')}:00
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveSection('inspector')}
+                          className="px-3 py-1.5 bg-[#EAAA00] text-[#3A0F34] text-xs font-bold brutal-btn"
+                        >
+                          [ INTERROGATE_VINTAGES ]
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 text-xs">
+                      <div>
+                        <span className="text-slate-300 block">FORECAST_0900:</span>
+                        <span className="font-display font-bold text-lg text-[#EAAA00]">
+                          {activeObs.forecast_mw !== null ? `${activeObs.forecast_mw.toFixed(1)} MW` : 'MISSING'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-300 block">SETTLED_OUTTURN:</span>
+                        <span className="font-display font-bold text-lg text-white">
+                          {activeObs.actual_mw !== null ? `${activeObs.actual_mw.toFixed(1)} MW` : 'MISSING'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-300 block">SIGNED_ERROR (F - A):</span>
+                        <span
+                          className={`font-display font-bold text-lg ${
+                            (activeObs.error_mw ?? 0) >= 0 ? 'text-[#EAAA00]' : 'text-purple-300'
+                          }`}
+                        >
+                          {activeObs.error_mw !== null
+                            ? `${activeObs.error_mw > 0 ? '+' : ''}${activeObs.error_mw.toFixed(1)} MW`
+                            : '--'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-300 block">AUDIT_STATUS:</span>
+                        <span className="inline-block mt-1 font-bold px-2 py-0.5 bg-white text-[#3A0F34] uppercase text-[10px]">
+                          [{activeObs.status}]
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* VIEW 02: VINTAGE INSPECTOR DOCKET */}
+            {activeSection === 'inspector' && (
+              <section className="space-y-6">
+                <div className="border-b-2 border-[#3A0F34] pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-display font-bold text-xl text-[#3A0F34]">
+                      POINT-IN-TIME VINTAGE REVISION DOCKET
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Verifying all WINDFOR forecast revisions against the 09:00 London Gate Closure.
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-[#3A0F34]">TARGET_HOUR:</span>
+                    <select
+                      value={selectedHour}
+                      onChange={(e) => setSelectedHour(Number(e.target.value))}
+                      className="border-2 border-[#3A0F34] bg-white px-2 py-1 text-xs font-bold brutal-shadow-sm"
+                    >
+                      {Array.from({ length: 24 }).map((_, h) => (
+                        <option key={`hour-opt-${h}`} value={h}>
+                          {String(h).padStart(2, '0')}:00 UTC
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left 8 Cols: Historical Vintages Table */}
+                  <div className="lg:col-span-8 bg-white border-2 border-[#3A0F34] p-5 brutal-shadow">
+                    <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-3 mb-4">
+                      <span className="font-bold text-xs uppercase text-[#3A0F34]">
+                        [ PUBLISHED_VINTAGES_CHRONOLOGY: {selectedDate} @ {String(selectedHour).padStart(2, '0')}:00 ]
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-500">
+                        {historyItems.length} REVISIONS_RECORDED
+                      </span>
+                    </div>
+
+                    {historyLoading ? (
+                      <div className="text-center py-8 text-xs font-bold text-[#3A0F34]">
+                        [ LOADING_VINTAGE_AUDIT_LOG... ]
+                      </div>
+                    ) : historyItems.length === 0 ? (
+                      <div className="text-center py-8 text-xs font-bold text-slate-500">
+                        No revisions recorded for this specific interval in database.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#DDE3E8] text-[#3A0F34] border-b-2 border-[#3A0F34]">
+                            <tr>
+                              <th className="py-2 px-3 font-bold">PUBLISH_TIME (UTC)</th>
+                              <th className="py-2 px-3 font-bold text-right">FORECAST (MW)</th>
+                              <th className="py-2 px-3 font-bold text-right">LEAD_TIME</th>
+                              <th className="py-2 px-3 font-bold text-center">ELIGIBILITY</th>
+                              <th className="py-2 px-3 font-bold text-center">DECISION_STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y-2 divide-slate-100">
+                            {historyItems.map((item, idx) => (
+                              <tr
+                                key={`v-${idx}`}
+                                className={`transition-colors ${
+                                  item.is_selected
+                                    ? 'bg-[#EAAA00]/25 font-bold text-[#3A0F34]'
+                                    : 'hover:bg-slate-50 text-[#141217]'
+                                }`}
+                              >
+                                <td className="py-2.5 px-3">
+                                  {new Date(item.publish_time).toISOString().replace('.000Z', 'Z')}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-display font-bold">
+                                  {item.generation_mw.toFixed(1)} MW
+                                </td>
+                                <td className="py-2.5 px-3 text-right">
+                                  {item.lead_time_hours ? `${item.lead_time_hours}h prior` : '--'}
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  {item.is_eligible ? (
+                                    <span className="px-1.5 py-0.5 border border-[#3A0F34] bg-white text-[10px] font-bold text-[#3A0F34]">
+                                      [ELIGIBLE]
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 border border-rose-800 bg-rose-100 text-[10px] font-bold text-rose-800">
+                                      [VOID_POST_GATE]
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  {item.is_selected ? (
+                                    <span className="px-2 py-0.5 bg-[#3A0F34] text-[#EAAA00] text-[10px] font-bold">
+                                      [★ ACTIVE_ORDER]
+                                    </span>
+                                  ) : item.is_eligible ? (
+                                    <span className="text-slate-400 text-[10px]">SUPERSEDED</span>
+                                  ) : (
+                                    <span className="text-rose-700 text-[10px]">DISQUALIFIED</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right 4 Cols: Why This Vintage Was Chosen (Opinionated Desk Memo) */}
+                  <div className="lg:col-span-4 bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow space-y-4">
+                    <span className="text-xs font-bold text-[#EAAA00] uppercase tracking-widest block">
+                      [ GATE_CLOSURE_POLICY_MEMO ]
+                    </span>
+
+                    <h3 className="font-display font-bold text-lg text-white">
+                      WHY WAS THIS VINTAGE CHOSEN?
+                    </h3>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      At 09:00 Europe/London, the trading desk submitted physical day-ahead notification orders. Under Elexon rules, any wind forecast published after 09:00 is unavailable at decision time.
+                    </p>
+
+                    <div className="border border-[#EAAA00]/40 p-3 bg-black/20 text-xs space-y-2">
+                      <div className="text-[#EAAA00] font-bold uppercase text-[11px]">
+                        RULE 1: NO LOOKAHEAD BIAS
+                      </div>
+                      <p className="text-slate-300 text-[11px]">
+                        Revisions with publish time &gt; 09:00 London are purged from evaluation. Evaluating day-ahead decisions with afternoon forecasts is analytical negligence.
+                      </p>
+                    </div>
+
+                    <div className="border border-[#EAAA00]/40 p-3 bg-black/20 text-xs space-y-2">
+                      <div className="text-[#EAAA00] font-bold uppercase text-[11px]">
+                        RULE 2: MAX ELIGIBLE TIMESTAMP
+                      </div>
+                      <p className="text-slate-300 text-[11px]">
+                        From all forecasts published before 09:00, WindSight algorithmically isolates max(publish_time) as the single source of truth.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* VIEW 03: FLEET DIURNAL DIAGNOSTICS */}
+            {activeSection === 'diagnostics' && (
+              <section className="space-y-6">
+                <div className="border-b-2 border-[#3A0F34] pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-display font-bold text-xl text-[#3A0F34]">
+                      DIURNAL FLEET PROFILE & ERROR SIGNATURE
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Systematic error patterns across the 24 hours of the day for the UK national wind fleet.
+                    </p>
+                  </div>
+                  <div className="text-xs font-bold text-[#3A0F34]">
+                    [ 744_HOURS_ANALYZED // JAN_2026 ]
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left 7 Cols: Diurnal 24h Bar Chart */}
+                  <div className="lg:col-span-7 bg-white border-2 border-[#3A0F34] p-5 brutal-shadow">
+                    <div className="flex items-center justify-between border-b-2 border-[#3A0F34] pb-3 mb-4">
+                      <span className="font-bold text-xs uppercase text-[#3A0F34]">
+                        [ MEAN_ERROR_BY_HOUR_OF_DAY (00:00 - 23:00) ]
+                      </span>
+                      <span className="text-[10px] font-bold bg-[#EAAA00] text-[#3A0F34] px-1.5 py-0.5">
+                        DIURNAL_SIGNATURE
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      {hourlyProfiles.map((hp) => {
+                        const err = hp.mean_error_mw;
+                        const isPos = err >= 0;
+                        const maxAbs = 600;
+                        const widthPct = Math.min(100, (Math.abs(err) / maxAbs) * 100);
+
+                        return (
+                          <div key={`hp-${hp.hour}`} className="flex items-center text-xs">
+                            <span className="w-12 font-bold text-slate-600 shrink-0">
+                              {String(hp.hour).padStart(2, '0')}:00
+                            </span>
+
+                            <div className="flex-1 flex items-center bg-[#DDE3E8] h-5 border border-[#3A0F34] relative">
+                              {/* Center zero mark */}
+                              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#3A0F34] z-10" />
+
+                              {/* Bar */}
+                              {isPos ? (
+                                <div
+                                  style={{ left: '50%', width: `${widthPct / 2}%` }}
+                                  className="absolute top-0 bottom-0 bg-[#EAAA00] border-r border-[#3A0F34]"
+                                />
+                              ) : (
+                                <div
+                                  style={{ right: '50%', width: `${widthPct / 2}%` }}
+                                  className="absolute top-0 bottom-0 bg-[#3A0F34] border-l border-[#3A0F34]"
+                                />
+                              )}
+                            </div>
+
+                            <span
+                              className={`w-20 text-right font-bold ml-2 shrink-0 ${
+                                isPos ? 'text-[#EAAA00]' : 'text-[#3A0F34]'
+                              }`}
+                            >
+                              {isPos ? `+${err.toFixed(1)}` : err.toFixed(1)} MW
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right 5 Cols: Error Distribution & Analytical Diagnosis */}
+                  <div className="lg:col-span-5 space-y-6">
+                    <div className="bg-[#3A0F34] text-[#DDE3E8] border-2 border-[#3A0F34] p-5 brutal-shadow">
+                      <span className="text-xs font-bold text-[#EAAA00] uppercase tracking-widest block mb-2">
+                        [ OPINIONATED_DESK_DIAGNOSIS ]
+                      </span>
+                      <h3 className="font-display font-bold text-base text-white">
+                        THE EVENING OVERFORECAST TRAP
+                      </h3>
+                      <p className="mt-2 text-xs text-slate-300 leading-relaxed">
+                        Numerical weather prediction consistently overforecasts wind outturn during peak evening demand hours (17:00 - 21:00 UTC). When evening wind drops faster than modeled, balancing margins compress and power prices spike.
+                      </p>
+                      <div className="mt-4 pt-3 border-t-2 border-[#DDE3E8]/20 flex justify-between text-xs">
+                        <span className="text-slate-300">SYSTEMATIC_SKEW:</span>
+                        <span className="font-bold text-[#EAAA00]">+239.4 MW OVERESTIMATED</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border-2 border-[#3A0F34] p-5 brutal-shadow">
+                      <span className="text-xs font-bold text-[#3A0F34] uppercase tracking-widest block mb-2">
+                        [ RISK_DISCLAIMER_NOTICE ]
+                      </span>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        WindSight isolates physical wind outturn and day-ahead forecast feeds from Elexon BMRS. This platform does not incorporate imbalance cash-out prices, system demand curves, or financial trading losses because Elexon outturn feeds do not furnish procurement volumes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* VIEW 04: RAW AUDIT LOG & CSV EXPORT */}
+            {activeSection === 'raw' && (
+              <section className="space-y-6">
+                <div className="border-b-2 border-[#3A0F34] pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-display font-bold text-xl text-[#3A0F34]">
+                      RAW SETTLEMENT & FORECAST AUDIT LOG
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Granular hourly ledger for {selectedDate}. Exportable to RFC 4180 CSV.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="border-2 border-[#3A0F34] bg-white px-2 py-1 text-xs font-bold brutal-shadow-sm"
+                    >
+                      <option value="all">ALL_STATUSES</option>
+                      <option value="matched">MATCHED_ONLY</option>
+                      <option value="missing_forecast">MISSING_FORECAST</option>
+                      <option value="missing_actual">MISSING_ACTUAL</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={triggerExport}
+                      className="px-4 py-1.5 bg-[#EAAA00] text-[#3A0F34] text-xs font-bold brutal-btn flex items-center space-x-1"
+                    >
+                      <span>[ DUMP_AUDIT_CSV ]</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white border-2 border-[#3A0F34] brutal-shadow overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-[#DDE3E8] text-[#3A0F34] border-b-2 border-[#3A0F34]">
+                      <tr>
+                        <th
+                          className="py-2.5 px-3 font-bold cursor-pointer hover:bg-slate-300"
+                          onClick={() => {
+                            setSortField('delivery_hour');
+                            setSortAsc(!sortAsc);
+                          }}
+                        >
+                          HOUR (UTC) {sortField === 'delivery_hour' ? (sortAsc ? '▲' : '▼') : ''}
+                        </th>
+                        <th className="py-2.5 px-3 font-bold text-right">FORECAST (MW)</th>
+                        <th className="py-2.5 px-3 font-bold text-right">ACTUAL (MW)</th>
+                        <th
+                          className="py-2.5 px-3 font-bold text-right cursor-pointer hover:bg-slate-300"
+                          onClick={() => {
+                            setSortField('error_mw');
+                            setSortAsc(!sortAsc);
+                          }}
+                        >
+                          ERROR (MW) {sortField === 'error_mw' ? (sortAsc ? '▲' : '▼') : ''}
+                        </th>
+                        <th
+                          className="py-2.5 px-3 font-bold text-right cursor-pointer hover:bg-slate-300"
+                          onClick={() => {
+                            setSortField('absolute_error_mw');
+                            setSortAsc(!sortAsc);
+                          }}
+                        >
+                          |ERROR| (MW) {sortField === 'absolute_error_mw' ? (sortAsc ? '▲' : '▼') : ''}
+                        </th>
+                        <th className="py-2.5 px-3 font-bold text-center">STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y-2 divide-slate-100">
+                      {displayedObservations.map((obs, idx) => (
+                        <tr key={`raw-row-${idx}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 px-3 font-bold text-[#3A0F34]">
+                            {String(obs.delivery_hour).padStart(2, '0')}:00 UTC
+                          </td>
+                          <td className="py-2 px-3 text-right font-bold">
+                            {obs.forecast_mw !== null ? `${obs.forecast_mw.toFixed(1)}` : '--'}
+                          </td>
+                          <td className="py-2 px-3 text-right font-bold">
+                            {obs.actual_mw !== null ? `${obs.actual_mw.toFixed(1)}` : '--'}
+                          </td>
+                          <td
+                            className={`py-2 px-3 text-right font-bold ${
+                              (obs.error_mw ?? 0) >= 0 ? 'text-[#EAAA00]' : 'text-[#3A0F34]'
+                            }`}
+                          >
+                            {obs.error_mw !== null ? `${obs.error_mw > 0 ? '+' : ''}${obs.error_mw.toFixed(1)}` : '--'}
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            {obs.absolute_error_mw !== null ? `${obs.absolute_error_mw.toFixed(1)}` : '--'}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 text-[10px] font-bold border ${
+                                obs.status === 'matched'
+                                  ? 'bg-[#3A0F34] text-[#EAAA00] border-[#3A0F34]'
+                                  : 'bg-rose-100 text-rose-800 border-rose-800'
+                              }`}
+                            >
+                              [{obs.status}]
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </main>
+
+      {/* FOOTER */}
+      <footer className="border-t-2 border-[#3A0F34] bg-[#3A0F34] text-[#DDE3E8] p-4 text-xs font-mono mt-12">
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
+          <div>
+            <span className="font-display font-bold text-[#EAAA00]">WINDSIGHT</span> // UK POWER DISPATCH TELETYPE
+          </div>
+          <div className="text-slate-300 text-[11px]">
+            STRICT_PALETTE: #DDE3E8 (70%) | #3A0F34 (20%) | #EAAA00 (10%) | NO_GRADIENTS | 2PX_SOLID_BORDERS
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
 

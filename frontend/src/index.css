@@ -1,24 +1,109 @@
 @import 'tailwindcss';
 
 :root {
-  --color-primary: #1e3a5f;
-  --color-accent: #2d7dd2;
-  --color-success: #28a745;
-  --color-warning: #f5a623;
-  --color-error: #dc3545;
-  --color-forecast: #2d7dd2;
-  --color-actual: #28a745;
-  --color-overforecast: #f5a623;
-  --color-underforecast: #6c5ce7;
+  --ice-silver: #DDE3E8;
+  --deep-aubergine: #3A0F34;
+  --marigold: #EAAA00;
+  --ink-carbon: #141217;
+  --white: #FFFFFF;
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: var(--ice-silver);
+  color: var(--ink-carbon);
+  font-family: 'IBM Plex Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-code, kbd, samp, pre {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+/* Typography styles */
+.font-display {
+  font-family: 'Unbounded', sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.font-mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Hard brutalist borders & offset shadows */
+.brutal-border {
+  border: 2px solid #3A0F34;
+}
+
+.brutal-shadow {
+  box-shadow: 6px 6px 0px #3A0F34;
+}
+
+.brutal-shadow-sm {
+  box-shadow: 3px 3px 0px #3A0F34;
+}
+
+.brutal-shadow-lg {
+  box-shadow: 8px 8px 0px #3A0F34;
+}
+
+.brutal-shadow-gold {
+  box-shadow: 6px 6px 0px #EAAA00;
+}
+
+/* Tactile button sink effect */
+.brutal-btn {
+  border: 2px solid #3A0F34;
+  box-shadow: 4px 4px 0px #3A0F34;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.brutal-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0px #3A0F34;
+}
+
+.brutal-btn:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0px #3A0F34;
+}
+
+.brutal-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0px #3A0F34;
+}
+
+/* Mechanical Ink Stamp animation */
+@keyframes ink-stamp {
+  0% {
+    transform: scale(1.35) rotate(-6deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.96) rotate(-1deg);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1) rotate(-1.5deg);
+    opacity: 1;
+  }
+}
+
+.ink-stamp-animated {
+  animation: ink-stamp 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .ink-stamp-animated,
+  .brutal-btn,
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus visible styling */
+:focus-visible {
+  outline: 3px solid #EAAA00;
+  outline-offset: 2px;
 }
