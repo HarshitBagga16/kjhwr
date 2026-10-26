@@ -442,7 +442,7 @@ npm run build
 
 ### Live Application Links
 - **Public GitHub Repository:** [https://github.com/HarshitBagga16/kjhwr](https://github.com/HarshitBagga16/kjhwr)
-- **Vercel Web Application:** [https://kjhwr.vercel.app](https://kjhwr.vercel.app) (or deployed custom domain)
+- **Vercel Web Application:** [https://uk-windforecast.vercel.app/](https://uk-windforecast.vercel.app/)
 - **Render / Heroku Backend API:** Configured via `render.yaml` and `Procfile`
 
 ### Option A: Vercel 1-Click Deployment (Frontend)
