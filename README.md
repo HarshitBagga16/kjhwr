@@ -1,6 +1,10 @@
 # WindSight — Day-Ahead Wind Intelligence Platform
 
-[![CI Pipeline](https://github.com/wind-intel/windsight/actions/workflows/ci.yml/badge.svg)](https://github.com/wind-intel/windsight/actions/workflows/ci.yml)
+**Public Anonymous Repository:** [https://github.com/HarshitBagga16/kjhwr](https://github.com/HarshitBagga16/kjhwr)  
+**Lead Author:** Harshit Bagga (harshitbagga34@gmail.com)  
+
+[![GitHub Repository](https://img.shields.io/badge/GitHub-HarshitBagga16%2Fkjhwr-181717.svg?logo=github)](https://github.com/HarshitBagga16/kjhwr)
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Deployed-000000.svg?logo=vercel)](https://kjhwr.vercel.app)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB.svg?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6.svg?logo=typescript)](https://www.typescriptlang.org)
@@ -436,24 +440,31 @@ npm run build
 
 ## 14. Deployment Guide
 
-### Vercel Deployment (Frontend)
-1. Fork or push repository to GitHub.
-2. In Vercel, import the `frontend` folder as root directory.
-3. Configure Environment Variables:
-   - `VITE_API_URL`: `https://your-backend-api.onrender.com`
-4. Build settings: Framework Preset: `Vite`, Build Command: `npm run build`, Output Directory: `dist`.
+### Live Application Links
+- **Public GitHub Repository:** [https://github.com/HarshitBagga16/kjhwr](https://github.com/HarshitBagga16/kjhwr)
+- **Vercel Web Application:** [https://kjhwr.vercel.app](https://kjhwr.vercel.app) (or deployed custom domain)
+- **Render / Heroku Backend API:** Configured via `render.yaml` and `Procfile`
 
-### Render Deployment (Backend & Database)
-1. In Render, create a new **PostgreSQL Managed Instance**:
-   - Name: `windsight-db`, Database: `windsight`, User: `windsight`.
-2. Create a new **Web Service**:
-   - Environment: `Python 3`, Root Directory: `backend`.
-   - Build Command: `pip install -r requirements.txt && alembic upgrade head`
-   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - Add Environment Variables:
-     - `WINDSIGHT_DATABASE_URL`: Internal Connection String from PostgreSQL instance
-     - `WINDSIGHT_CORS_ORIGINS`: `["https://your-frontend.vercel.app"]`
-     - `WINDSIGHT_ADMIN_API_KEY`: Strong random secret
+### Option A: Vercel 1-Click Deployment (Frontend)
+1. Go to [vercel.com/new](https://vercel.com/new) and connect your GitHub account.
+2. Select repository **`HarshitBagga16/kjhwr`**.
+3. Zero Configuration: Root `vercel.json` and `frontend/vercel.json` are pre-configured with Vite framework presets and SPA routing rewrites.
+4. Optional Environment Variable:
+   - `VITE_API_URL`: URL of your backend API (e.g. `https://windsight-backend.onrender.com`).
+5. Click **Deploy**. Vercel will build and assign a global production URL (e.g. `https://kjhwr.vercel.app`).
+
+### Option B: Render 1-Click Deployment (Backend + DB)
+1. Push to GitHub, then in Render Dashboard, select **New > Blueprint**.
+2. Connect `HarshitBagga16/kjhwr` — Render will automatically read [`render.yaml`](./render.yaml).
+3. The blueprint provisions:
+   - Python 3.11 environment with automatic dependency installation.
+   - Live SQLite/PostgreSQL database with pre-populated January 2026 Elexon records.
+   - Uvicorn server running on `$PORT`.
+
+### Option C: Heroku Deployment
+1. Connect repository `HarshitBagga16/kjhwr` to Heroku.
+2. Heroku reads [`Procfile`](./Procfile) automatically (`web: uvicorn app.main:app --host 0.0.0.0 --port $PORT --app-dir backend`).
+3. Set Config Vars in Heroku Dashboard (`WINDSIGHT_CORS_ORIGINS`).
 
 ---
 
