@@ -1,10 +1,12 @@
 import logging
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from app.api.routes import admin, analytics, contact, dashboard, forecasts
 from app.core.config import get_settings
@@ -44,6 +46,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def normalize_slashes_middleware(request: Request, call_next):
+    """Normalize redundant slashes in URL path (e.g. //api/ -> /api/)."""
+    path = request.scope.get("path", "")
+    if "//" in path:
+        request.scope["path"] = re.sub(r"/+", "/", path)
+    return await call_next(request)
+
+
 # Configure In-Memory Rate Limiter and Caching Headers
 app.add_middleware(CacheHeaderMiddleware)
 app.add_middleware(RateLimiterMiddleware, max_requests=120, window_seconds=60)
@@ -54,6 +66,19 @@ app.include_router(forecasts.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(contact.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+
+
+@app.get("/", tags=["Root"])
+def root_status() -> dict:
+    """Root endpoint welcoming operators and providing service status."""
+    return {
+        "status": "online",
+        "service": "WindSight API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/api/health",
+        "desk": "UK Day-Ahead Wind Forecast Intelligence Platform",
+    }
 
 
 @app.get("/api/health", tags=["Health"])

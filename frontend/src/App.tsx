@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { FarmBackground } from './components/FarmBackground';
 
-// API Base configuration
-const API_BASE = import.meta.env.VITE_API_URL || '';
+// API Base configuration (strips trailing slash so //api/ never occurs)
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 // ==========================================
 // 1. DATA MODELS & TYPES
