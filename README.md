@@ -1,505 +1,180 @@
-# WindSight — Day-Ahead Wind Intelligence Platform
+# UK Wind Forecast Intelligence Platform (WindSight)
 
-**Public Anonymous Repository:** [https://github.com/HarshitBagga16/kjhwr](https://github.com/HarshitBagga16/kjhwr)  
-**Lead Author:** Harshit Bagga (harshitbagga34@gmail.com)  
+## 1. Application Links
 
-[![GitHub Repository](https://img.shields.io/badge/GitHub-HarshitBagga16%2Fkjhwr-181717.svg?logo=github)](https://github.com/HarshitBagga16/kjhwr)
-[![Vercel Deployment](https://img.shields.io/badge/Vercel-Deployed-000000.svg?logo=vercel)](https://kjhwr.vercel.app)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18.3-61DAFB.svg?logo=react)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6.svg?logo=typescript)](https://www.typescriptlang.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1.svg?logo=postgresql)](https://www.postgresql.org)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4.svg?logo=tailwindcss)](https://tailwindcss.com)
-
-A production-grade UK wind generation forecast intelligence and point-in-time accuracy verification platform built for power trading and dispatch desks. Designed for the day-ahead procurement operations of a UK electricity utility.
+* **Live Web Application (Vercel):** [https://uk-windforecast.vercel.app/diurnal](https://uk-windforecast.vercel.app/diurnal)
+* **Backend API (Render):** [https://windsight-backend-fuwb.onrender.com](https://windsight-backend-fuwb.onrender.com)
+* **API Documentation (Swagger UI):** [https://windsight-backend-fuwb.onrender.com/docs](https://windsight-backend-fuwb.onrender.com/docs)
+* **Public GitHub Repository:** [https://github.com/HarshitBagga16/kjhwr](https://github.com/HarshitBagga16/kjhwr)
 
 ---
 
-## Table of Contents
-1. [Product Overview & Business Problem](#1-product-overview--business-problem)
-2. [Point-in-Time Forecast Methodology](#2-point-in-time-forecast-methodology)
-3. [Accuracy Metrics Definitions](#3-accuracy-metrics-definitions)
-4. [Architecture & System Design](#4-architecture--system-design)
-5. [Technology Stack](#5-technology-stack)
-6. [Repository Structure](#6-repository-structure)
-7. [Data Sources & Time Windows](#7-data-sources--time-windows)
-8. [Data Quality Assumptions & Limitations](#8-data-quality-assumptions--limitations)
-9. [Local Setup & Docker Instructions](#9-local-setup--docker-instructions)
-10. [Database Migrations & Data Ingestion](#10-database-migrations--data-ingestion)
-11. [Environment Variables](#11-environment-variables)
-12. [API Documentation](#12-api-documentation)
-13. [Test Execution & Verification Results](#13-test-execution--verification-results)
-14. [Deployment Guide](#14-deployment-guide)
-15. [AI Tool Usage Disclosure](#15-ai-tool-usage-disclosure)
-16. [Known Limitations & Future Roadmap](#16-known-limitations--future-roadmap)
-17. [10-Minute Video Demonstration Outline](#17-10-minute-video-demonstration-outline)
+## 2. Details of Files and Directories Present
 
----
-
-## 1. Product Overview & Business Problem
-
-### The Business Context
-In the UK electricity market (Great Britain National Electricity Transmission System), energy suppliers and utilities must balance power demand with generation. Electricity cannot be stored economically in vast quantities at grid scale, so purchase decisions must be locked in advance on wholesale day-ahead auctions (e.g., EPEX SPOT, Nord Pool UK).
-
-Wind generation in the UK is weather-dependent and volatile. To meet consumer demand, utility dispatchers must procure thermal, hydro, or imported power for the net deficit:
-$$\text{Procurement Target} = \text{Consumer Demand} - \text{Renewable Generation}$$
-
-When day-ahead wind forecasts are inaccurate:
-- **Overforecasting wind** leaves the utility short, forcing emergency purchases in the Balancing Mechanism at penal cash-out prices.
-- **Underforecasting wind** causes over-procurement, incurring unnecessary hedging commitments and selling excess power at distress imbalance discounts.
-
-### What WindSight Solves
-WindSight provides the energy desk with:
-1. **Point-in-Time Traceability**: Reconstructs the exact forecast vintage available at the decision cutoff (e.g., 09:00 Europe/London) to prevent evaluation bias using future information.
-2. **Quantitative Benchmarking**: Systematically quantifies MAE, RMSE, signed bias, and WAPE across January 2026 delivery intervals.
-3. **Diurnal & Fleet Profiling**: Identifies systematic daily and hourly error tendencies across the GB generation fleet.
-4. **Data Coverage & Integrity Audit**: Explicitly tracks missing intervals, reporting sample sizes beside every aggregate metric.
-
-> **Trading Desk Limitation Notice**: WindSight strictly isolates wind outturn and forecasts. The platform does not incorporate system demand, imbalance cash-out prices, or financial trading losses because Elexon outturn feeds do not furnish procurement volumes.
-
----
-
-## 2. Point-in-Time Forecast Methodology
-
-The cornerstone of WindSight is **Point-in-Time (PIT) Forecast Selection**:
-
-```
-Forecast Vintages Published for Delivery Interval [T]
-           Vintage A                  Vintage B           [Decision Cutoff]        Vintage C (Future)
-               |                          |                       |                        |
-------o--------+--------------------------+-----------------------+------------------------+--------> Time
-   2026-01-14 18:00            2026-01-15 07:30           2026-01-15 09:00          2026-01-15 11:30
-                                      ▲
-                           [SELECTED ACTIVE VINTAGE]
-```
-
-### Selection Rules:
-1. **Timezone Awareness**: The operational cutoff is defined in the `Europe/London` timezone (default `09:00 Europe/London`) and converted to UTC for database comparison.
-2. **Eligibility Filter**: For delivery interval starting at $T_{\text{start}}$, all forecast records with $\text{publishTime} \le T_{\text{cutoff}}$ are eligible. Forecasts with $\text{publishTime} > T_{\text{cutoff}}$ are strictly excluded as *future information*.
-3. **Latest Information Principle**: From all eligible vintages, WindSight selects the record with $\max(\text{publishTime})$, representing the most refined forecast available when the trader submitted day-ahead orders.
-4. **Immutability**: All historical vintages are permanently stored in PostgreSQL without overwriting.
-5. **Configurability**: The operational cutoff hour is configurable (`09:00` by default), enabling desks to simulate 10:00, 11:00 or custom gate closures.
-
-### Resolution Alignment:
-- **Forecasts (`WINDFOR`)**: Published at **1-hour** delivery resolution.
-- **Actuals (`FUELHH`)**: Published at **30-minute** settlement resolution.
-- **Alignment Strategy**: Each hourly interval $[H:00, H+1:00)$ is matched by computing the arithmetic mean of the two half-hourly actual outturns ($H:00$ and $H:30$):
-$$\text{Actual}_{H} = \frac{\text{Actual}_{H:00} + \text{Actual}_{H:30}}{2}$$
-If only one half-hour is recorded, that value is used; if neither is recorded, the interval is marked `missing_actual`.
-
----
-
-## 3. Accuracy Metrics Definitions
-
-All metrics are evaluated exclusively on valid, matched observations where both forecast and actual exist ($n = \text{matched intervals}$).
-
-| Metric | Mathematical Formula | Units | Desk Interpretation |
-|---|---|---|---|
-| **Signed Error** | $e_i = \hat{y}_i - y_i$ | MW | Positive = Overforecast; Negative = Underforecast |
-| **Absolute Error** | $\|e_i\| = \|\hat{y}_i - y_i\|$ | MW | Non-negative magnitude of forecast deviation |
-| **Mean Absolute Error (MAE)** | $\frac{1}{n}\sum_{i=1}^n \|\hat{y}_i - y_i\|$ | MW | Average expected discrepancy in MW output |
-| **Root Mean Squared Error (RMSE)**| $\sqrt{\frac{1}{n}\sum_{i=1}^n (\hat{y}_i - y_i)^2}$ | MW | Penalizes large outlier forecast errors heavily |
-| **Mean Bias** | $\frac{1}{n}\sum_{i=1}^n (\hat{y}_i - y_i)$ | MW | Systematic over/under-generation skewness |
-| **Weighted Absolute Percentage Error (WAPE)** | $\frac{\sum_{i=1}^n \|\hat{y}_i - y_i\|}{\sum_{i=1}^n y_i} \times 100\%$ | % | Volume-weighted error percentage relative to total fleet outturn |
-| **Mean Absolute Percentage Error (MAPE)** | $\frac{1}{n}\sum_{i=1}^n \frac{\|\hat{y}_i - y_i\|}{y_i} \times 100\%$ | % | Explicitly omitted when $y_i \le 0.001\text{ MW}$ to avoid division by zero |
-
----
-
-## 4. Architecture & System Design
-
-```mermaid
-flowchart TB
-    subgraph DataSources["External Data Feeds (Elexon BMRS)"]
-        FUELHH["GET /datasets/FUELHH/stream\n(Actual Outturn by Fuel)"]
-        WINDFOR["GET /datasets/WINDFOR/stream\n(Wind Forecast Vintages)"]
-    end
-
-    subgraph BackendCore["FastAPI Backend (Modular Monolith)"]
-        EClient["ElexonClient\n(HTTPX + Retries + Backoff)"]
-        IngestService["IngestionService\n(Chunked Idempotent Upserts)"]
-        AlignService["AlignmentService\n(Point-in-Time Selection)"]
-        MetricService["MetricsService\n(MAE, RMSE, Bias, WAPE)"]
-        
-        subgraph API["FastAPI Route Handlers"]
-            R_Dash["/api/dashboard"]
-            R_Fore["/api/forecasts"]
-            R_Anal["/api/analytics"]
-            R_Adm["/api/admin"]
-            R_Hlt["/api/health"]
-        end
-    end
-
-    subgraph Storage["Persistence Layer (PostgreSQL)"]
-        T_Actual["actual_generation\n(Unique: start_time, fuel_type)"]
-        T_Fore["wind_forecasts\n(Unique: start_time, publish_time)"]
-        T_Runs["ingestion_runs\n(Audit trail & Status)"]
-    end
-
-    subgraph FrontendApp["React 18 TypeScript Frontend (Vite)"]
-        F_Dash["Dashboard View\n(KPIs, Line Chart, Error Bars)"]
-        F_Insp["Forecast Inspector\n(Hourly Table, Vintage Modal)"]
-        F_Anal["Accuracy Analytics\n(Daily Trends, 24h Profile, Histogram)"]
-        F_Expl["Data Explorer\n(Sortable Table, CSV Export)"]
-    end
-
-    FUELHH --> EClient
-    WINDFOR --> EClient
-    EClient --> IngestService
-    IngestService --> Storage
-    Storage --> AlignService
-    AlignService --> MetricService
-    MetricService --> API
-    API --> FrontendApp
-```
-
----
-
-## 5. Technology Stack
-
-### Backend
-- **Python**: 3.11 / 3.12
-- **Framework**: FastAPI 0.115 + Pydantic v2
-- **Database & ORM**: PostgreSQL 16, SQLAlchemy 2.0.36, Alembic 1.14.1
-- **Numerical Processing**: NumPy 2.2.1, Pandas 2.2.3
-- **HTTP Client**: HTTPX 0.28.1 (with connection pooling and bounded backoff)
-- **Timezone**: `zoneinfo` (`Europe/London`), `pytz`, `python-dateutil`
-- **Quality & Testing**: Pytest 8.3, pytest-httpx, Ruff 0.8.6
-
-### Frontend
-- **Framework**: React 18.3, TypeScript 5.5, Vite 5.4
-- **Routing**: React Router v6
-- **Styling**: Tailwind CSS v4, Inter & JetBrains Mono typography
-- **Data Visualizations**: Recharts 2.15 (Forecast vs Actual, Error bars, Diurnal 24h, Scatter, Histogram)
-- **Quality & Testing**: Vitest 1.6, React Testing Library, JSDOM
-
-### Infrastructure
-- **Containerization**: Docker, Docker Compose (multi-stage builds, non-root users)
-- **CI/CD**: GitHub Actions (linting, type checking, PostgreSQL test suite)
-- **Reverse Proxy**: Nginx 1.25 Alpine
-
----
-
-## 6. Repository Structure
-
-```
+```text
 .
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # GitHub Actions CI matrix
-├── backend/
-│   ├── alembic/                 # Database migration scripts
-│   │   ├── env.py
+├── docker-compose.yml            # Docker Compose orchestration for frontend, backend & database
+├── Dockerfile                    # Container build configuration for frontend Nginx image
+├── nginx.conf                    # Nginx reverse proxy, caching, compression & security header config
+├── Procfile                      # Heroku deployment process definition for the Python backend
+├── render.yaml                   # Render Blueprint infrastructure-as-code deployment configuration
+├── vercel.json                   # Root Vercel SPA routing and build configuration
+│
+├── backend/                      # Python FastAPI Backend Service
+│   ├── alembic.ini               # Database migration tool configuration
+│   ├── Dockerfile                # Docker container build definition for the FastAPI backend
+│   ├── requirements.txt          # Pinned Python package dependencies
+│   ├── windsight.db              # SQLite database pre-populated with January 2026 Elexon data
+│   │
+│   ├── alembic/                  # Database schema migration scripts
+│   │   ├── env.py                # Alembic environment and SQLAlchemy model binding
+│   │   ├── script.py.mako        # Migration file template
 │   │   └── versions/
-│   │       └── 0001_initial_tables.py
-│   ├── app/
+│   │       └── 0001_initial_tables.py # Initial database schema creation script
+│   │
+│   ├── app/                      # Application source code
+│   │   ├── main.py               # FastAPI entrypoint, lifespan startup/seed, CORS, and routing
+│   │   │
 │   │   ├── api/
-│   │   │   └── routes/          # REST endpoints
-│   │   │       ├── admin.py     # Protected ingestion trigger
-│   │   │       ├── analytics.py  # Summaries, error series, diurnal, CSV
-│   │   │       ├── dashboard.py  # Main desk overview
-│   │   │       └── forecasts.py  # Hourly audit & vintage history
+│   │   │   └── routes/           # HTTP API endpoint controllers
+│   │   │       ├── admin.py      # On-demand data ingestion trigger and sync audit status
+│   │   │       ├── analytics.py  # Summary statistics, diurnal curve, daily metrics & CSV export
+│   │   │       ├── contact.py    # In-app trading desk contact inquiry submission
+│   │   │       ├── dashboard.py  # Daily dispatch ledger and hourly aligned forecast/actuals
+│   │   │       └── forecasts.py  # Historical forecast vintage audit trail by delivery interval
+│   │   │
 │   │   ├── clients/
-│   │   │   └── elexon_client.py # Robust BMRS API client
+│   │   │   └── elexon_client.py  # Elexon BMRS API client with exponential backoff & circuit breaker
+│   │   │
 │   │   ├── core/
-│   │   │   ├── config.py        # Pydantic BaseSettings
-│   │   │   └── logging.py       # JSON structured logging
+│   │   │   ├── config.py         # App configuration & environment variables via Pydantic BaseSettings
+│   │   │   ├── logging.py        # Structured JSON logging configuration
+│   │   │   └── middleware.py     # Sliding-window rate limiter (120 req/min) & HTTP cache-headers
+│   │   │
 │   │   ├── db/
-│   │   │   ├── models.py        # SQLAlchemy Declarative Models
-│   │   │   └── session.py       # Engine & SessionLocal
-│   │   ├── schemas/             # Pydantic request/response models
-│   │   ├── services/
-│   │   │   ├── alignment_service.py # Core PIT alignment logic
-│   │   │   ├── ingestion_service.py # Batch ingestion orchestrator
-│   │   │   └── metrics_service.py   # Statistical KPI calculations
-│   │   └── main.py              # FastAPI app lifecycle
+│   │   │   ├── models.py         # SQLAlchemy ORM models (ActualGeneration, WindForecast, IngestionRun)
+│   │   │   └── session.py        # Database engine creation, connection pooling & get_db dependency
+│   │   │
+│   │   ├── schemas/              # Pydantic v2 data validation schemas (DTOs)
+│   │   │   ├── analytics.py      # Request/response schemas for summary KPIs, diurnal & pagination
+│   │   │   └── forecast.py       # Request/response schemas for dashboard, time-series & vintages
+│   │   │
+│   │   └── services/             # Core business logic and mathematical processing
+│   │       ├── alignment_service.py # Point-in-time forecast selection & 30m-to-1h actuals alignment
+│   │       ├── ingestion_service.py # Raw data ingestion, validation & idempotent database upserts
+│   │       └── metrics_service.py   # Statistical accuracy metrics calculation (MAE, RMSE, Bias, WAPE)
+│   │
 │   ├── scripts/
-│   │   ├── ingest_historical.py # CLI for live Elexon ingestion
-│   │   └── seed_demo_data.py    # Explicitly labelled demo seeder
-│   ├── tests/                   # 22 comprehensive unit tests
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── api/client.ts        # Typed fetch client
-│   │   ├── components/
-│   │   │   ├── charts/          # Recharts components (6 custom charts)
-│   │   │   ├── layout/          # Top nav & footer
-│   │   │   └── ui/              # KpiCard, DateSelector, StatusBadge
-│   │   ├── features/
-│   │   │   ├── analytics/       # 5-tab analytical deep dive
-│   │   │   ├── dashboard/       # Executive desk overview
-│   │   │   ├── data-explorer/   # Paginated observation table
-│   │   │   └── forecasts/       # Hourly inspector & vintage dialog
-│   │   ├── hooks/useApi.ts      # Reactive state hook
-│   │   ├── types/index.ts       # TypeScript interfaces
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   └── package.json
-├── docker-compose.yml           # Full-stack composition
-├── .env.example                 # Configuration template
-├── .gitignore
-└── README.md
+│   │   └── seed_demo_data.py     # Database seeder for January 2026 demonstration records
+│   │
+│   └── tests/                    # Automated Pytest test suite (22 unit & integration tests)
+│       ├── test_alignment.py     # Tests for gate closure cutoffs, lookahead prevention & averaging
+│       ├── test_api.py           # Tests for all API routes, status codes, auth & CSV exports
+│       ├── test_elexon_client.py # Tests for API retries, circuit breaker tripping & parsing
+│       └── test_metrics.py       # Tests for MAE, RMSE, signed bias, and zero-actual MAPE handling
+│
+└── frontend/                     # React 18 & TypeScript Frontend Application (Vite)
+    ├── package.json              # Frontend dependencies and npm scripts
+    ├── tsconfig.json             # TypeScript compiler configuration
+    ├── vite.config.ts            # Vite bundler, build plugins & test configuration
+    ├── vercel.json               # Frontend-specific Vercel SPA routing rewrite configuration
+    ├── index.html                # HTML entrypoint with SEO meta tags, OpenGraph & JSON-LD schema
+    │
+    ├── public/                   # Static web assets
+    │   ├── robots.txt            # Search engine crawler permissions
+    │   ├── sitemap.xml           # XML sitemap for route discovery
+    │   └── og-image.svg          # OpenGraph social share card image
+    │
+    └── src/
+        ├── App.tsx               # Main UI application, router, ErrorBoundary & kinetic turbine
+        ├── main.tsx              # React DOM mounting entrypoint
+        ├── index.css             # Tailwind CSS styles and custom teletype/farm keyframe animations
+        ├── vite-env.d.ts         # Vite client type declarations
+        │
+        ├── api/
+        │   └── client.ts         # Frontend API HTTP client and endpoint fetch functions
+        │
+        ├── components/
+        │   ├── FarmBackground.tsx # Full-viewport animated farm landscape in 60° top-down perspective
+        │   ├── charts/           # SVG visualization components (diurnal profile, daily trends)
+        │   ├── layout/           # Shared page layout wrappers
+        │   └── ui/               # Reusable UI controls (KPI cards, status badges, date selector)
+        │
+        ├── features/             # Sub-views (dashboard, vintage inspector, analytics, data explorer)
+        ├── hooks/                # Custom React data-fetching hooks (useApi)
+        ├── types/                # TypeScript interfaces matching backend API schemas
+        └── test/                 # Vitest test suite for frontend UI components
 ```
 
 ---
 
-## 7. Data Sources & Time Windows
+## 3. How to Start the Application
 
-WindSight utilizes exclusively official, open Elexon BMRS streams:
+### Option A: Local Development (Without Docker)
 
-| Dataset | Stream Endpoint | Settlement / Publish Cadence | Filtering Applied |
-|---|---|---|---|
-| **FUELHH** (Actuals) | `/datasets/FUELHH/stream` | Half-hourly (30 min) | Filtered strictly for `fuelType == "WIND"` |
-| **WINDFOR** (Forecasts) | `/datasets/WINDFOR/stream` | Hourly forecasts with multi-vintage updates | Queried over publication window |
+#### 1. Start the Backend
+```bash
+# Navigate to backend directory
+cd backend
 
-- **In-Scope Period**: January 1, 2026 00:00 UTC through January 31, 2026 23:59 UTC (744 hourly delivery intervals).
-- **Authentication**: Neither endpoint requires an API token; requests are rate-limited via exponential backoff (2s, 4s, 8s).
+# Create and activate Python virtual environment
+python -m venv venv
+source venv/bin/activate       # On Linux/macOS
+.\venv\Scripts\Activate.ps1    # On Windows PowerShell
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Start the FastAPI server with hot-reload
+python -m uvicorn app.main:app --reload --port 8000
+```
+* Backend runs at: `http://localhost:8000`
+* Interactive API Docs (Swagger): `http://localhost:8000/docs`
+
+#### 2. Start the Frontend
+```bash
+# Open a new terminal and navigate to frontend directory
+cd frontend
+
+# Install Node.js dependencies
+npm install
+
+# Start Vite development server
+npm run dev
+```
+* Frontend runs at: `http://localhost:5173`
 
 ---
 
-## 8. Data Quality Assumptions & Limitations
+### Option B: Docker Compose (Single Command)
 
-1. **Resolution Reconciliation**: Elexon publishes half-hourly outturn against hourly forecasts. Our pipeline computes the mathematical mean of each half-hour pair without interpolating fabricated timestamps.
-2. **Missing Actuals**: If grid telemetry drops an interval, it is explicitly classified as `missing_actual` rather than defaulting to 0 MW.
-3. **No External Covariates**: In strict accordance with client requirements, no weather forecasts, thermal power dispatch, or spot prices are ingested.
-4. **Demonstration Mode**: For local exploration without a live internet connection, a dedicated synthetic seeding script is provided. All synthetic data is auditable and tagged as `DEMO_SYNTHETIC`.
+To run the complete platform (frontend, backend, database, and reverse proxy) using Docker:
+
+```bash
+docker compose up --build
+```
+* Web Application: `http://localhost`
+* Backend API: `http://localhost:8000`
+* API Documentation: `http://localhost:8000/docs`
 
 ---
 
-## 9. Local Setup & Docker Instructions
+### Running Automated Tests
 
-### Prerequisites
-- Docker Engine 24+ & Docker Compose v2+
-- *Or* Python 3.11+ and Node.js 20+
-
-### Option A: Complete Docker Compose (Recommended)
-
-1. Clone the repository and configure the environment:
-   ```bash
-   cp .env.example .env
-   ```
-2. Build and launch the stack:
-   ```bash
-   docker compose up --build -d
-   ```
-3. The services will be available at:
-   - **Frontend UI**: [http://localhost:3000](http://localhost:3000)
-   - **Backend API & Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - **PostgreSQL**: `localhost:5432` (`windsight` / `windsight`)
-
-### Option B: Local Development Setup
-
-#### 1. Backend Setup
+#### Backend Test Suite (Pytest - 22 Tests)
 ```bash
 cd backend
-python -m venv venv
-# On Windows:
-.\venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
-
-pip install -r requirements.txt
-alembic upgrade head
-python -m scripts.seed_demo_data  # Or python -m scripts.ingest_historical
-uvicorn app.main:app --reload --port 8000
+python -m pytest
 ```
 
-#### 2. Frontend Setup
+#### Frontend Test Suite (Vitest - 7 Tests)
 ```bash
 cd frontend
-npm install
-npm run dev
-# Accessible at http://localhost:5173
-```
-
----
-
-## 10. Database Migrations & Data Ingestion
-
-### Running Migrations
-Alembic manages schema evolution:
-```bash
-cd backend
-alembic upgrade head
-```
-
-### Ingesting Live January 2026 Elexon Records
-To pull authentic live records directly from Elexon BMRS:
-```bash
-cd backend
-python -m scripts.ingest_historical --date-from 2026-01-01 --date-to 2026-01-31
-```
-
-### Protected Admin Ingestion Endpoint
-You can also trigger date-bounded ingestion via authenticated HTTP POST:
-```bash
-curl -X POST http://localhost:8000/api/admin/ingest \
-  -H "Content-Type: application/json" \
-  -H "X-Admin-API-Key: dev-admin-key" \
-  -d '{"date_from": "2026-01-01", "date_to": "2026-01-07"}'
-```
-
----
-
-## 11. Environment Variables
-
-| Variable | Description | Default | Scope |
-|---|---|---|---|
-| `WINDSIGHT_DATABASE_URL` | PostgreSQL connection string | `postgresql://windsight:windsight@localhost:5432/windsight` | Backend |
-| `WINDSIGHT_ELEXON_BASE_URL` | Elexon BMRS API v1 endpoint | `https://data.elexon.co.uk/bmrs/api/v1` | Backend |
-| `WINDSIGHT_ELEXON_TIMEOUT` | Request timeout in seconds | `30` | Backend |
-| `WINDSIGHT_ELEXON_MAX_RETRIES` | Max retries for failed requests | `3` | Backend |
-| `WINDSIGHT_DECISION_CUTOFF_HOUR` | Operational cutoff (Europe/London) | `9` (09:00 AM) | Backend |
-| `WINDSIGHT_ADMIN_API_KEY` | Secret key for `/api/admin/*` | `dev-admin-key` | Backend |
-| `WINDSIGHT_LOG_LEVEL` | Log verbosity | `INFO` | Backend |
-| `VITE_API_URL` | Target backend URL for frontend | `http://localhost:8000` | Frontend |
-
----
-
-## 12. API Documentation
-
-Interactive OpenAPI documentation is generated automatically by FastAPI:
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc UI**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | Service liveness and PostgreSQL connection check |
-| `GET` | `/api/dashboard?date=2026-01-15` | Single-day KPI metrics, time-series, and data coverage |
-| `GET` | `/api/forecasts?date=2026-01-15` | All 24 hourly aligned intervals for the given date |
-| `GET` | `/api/forecasts/{start_time}/history` | Historical vintages for a delivery interval, identifying the chosen vintage |
-| `GET` | `/api/analytics/summary?from=2026-01-01&to=2026-01-31` | Aggregate MAE, RMSE, bias, WAPE, and coverage |
-| `GET` | `/api/analytics/errors?from=2026-01-01&to=2026-01-31` | Hourly error series for distribution and box plots |
-| `GET` | `/api/analytics/hourly-profile` | 24-hour diurnal profile of average error by hour of day |
-| `GET` | `/api/analytics/daily` | Day-by-day MAE and bias trends across date range |
-| `GET` | `/api/analytics/observations` | Paginated observation table with status filter |
-| `GET` | `/api/analytics/export?from=...&to=...` | Streamed CSV download of aligned observations |
-| `POST`| `/api/admin/ingest` | Protected endpoint to trigger background ingestion |
-
----
-
-## 13. Test Execution & Verification Results
-
-### Backend Test Suite (Pytest)
-Command executed:
-```bash
-python -m pytest tests -v
-```
-**Results: 22 passed in 4.33s (100% pass rate)**
-
-```
-tests/test_alignment.py::test_get_decision_cutoff PASSED
-tests/test_alignment.py::test_select_latest_eligible_forecast PASSED
-tests/test_alignment.py::test_select_latest_eligible_forecast_none_eligible PASSED
-tests/test_alignment.py::test_build_aligned_observations_averages_half_hourly_actuals PASSED
-tests/test_alignment.py::test_error_sign_convention_overforecasting PASSED
-tests/test_alignment.py::test_error_sign_convention_underforecasting PASSED
-tests/test_alignment.py::test_missing_data_status_flags PASSED
-tests/test_api.py::test_health_endpoint PASSED
-tests/test_api.py::test_dashboard_endpoint_empty PASSED
-tests/test_api.py::test_dashboard_endpoint_with_data PASSED
-tests/test_api.py::test_forecast_history_endpoint PASSED
-tests/test_api.py::test_analytics_endpoints PASSED
-tests/test_api.py::test_paginated_observations_endpoint PASSED
-tests/test_api.py::test_admin_ingest_auth_protection PASSED
-tests/test_elexon_client.py::test_fetch_actual_generation_filters_wind PASSED
-tests/test_elexon_client.py::test_fetch_wind_forecasts PASSED
-tests/test_elexon_client.py::test_elexon_client_retries_and_succeeds PASSED
-tests/test_elexon_client.py::test_elexon_client_exhausts_retries PASSED
-tests/test_metrics.py::test_calculate_metrics_standard PASSED
-tests/test_metrics.py::test_calculate_metrics_zero_actual_mape_handling PASSED
-tests/test_metrics.py::test_calculate_daily_metrics PASSED
-tests/test_metrics.py::test_calculate_hourly_profile PASSED
-```
-
-### Python Linting & Formatting (Ruff)
-```bash
-python -m ruff check .
-python -m ruff format --check .
-```
-**Results: All checks passed! 32 files formatted.**
-
-### Frontend Test Suite (Vitest)
-```bash
 npm run test:run
 ```
-**Results: 2 test suites, 7 tests passed (100% pass rate)**
-
-### Frontend Type Checking & Build
-```bash
-npx tsc --noEmit
-npm run build
-```
-**Results: TypeScript check: 0 errors; Vite production bundle built successfully (dist/index.html, dist/assets/).**
 
 ---
 
-## 14. Deployment Guide
+## 4. AI Tool Usage Disclosure
 
-### Live Application Links
-- **Public GitHub Repository:** [https://github.com/HarshitBagga16/kjhwr](https://github.com/HarshitBagga16/kjhwr)
-- **Vercel Web Application:** [https://uk-windforecast.vercel.app/](https://uk-windforecast.vercel.app/)
-- **Render / Heroku Backend API:** Configured via `render.yaml` and `Procfile`
-
-### Option A: Vercel 1-Click Deployment (Frontend)
-1. Go to [vercel.com/new](https://vercel.com/new) and connect your GitHub account.
-2. Select repository **`HarshitBagga16/kjhwr`**.
-3. Zero Configuration: Root `vercel.json` and `frontend/vercel.json` are pre-configured with Vite framework presets and SPA routing rewrites.
-4. Optional Environment Variable:
-   - `VITE_API_URL`: URL of your backend API (e.g. `https://windsight-backend.onrender.com`).
-5. Click **Deploy**. Vercel will build and assign a global production URL (e.g. `https://kjhwr.vercel.app`).
-
-### Option B: Render 1-Click Deployment (Backend + DB)
-1. Push to GitHub, then in Render Dashboard, select **New > Blueprint**.
-2. Connect `HarshitBagga16/kjhwr` — Render will automatically read [`render.yaml`](./render.yaml).
-3. The blueprint provisions:
-   - Python 3.11 environment with automatic dependency installation.
-   - Live SQLite/PostgreSQL database with pre-populated January 2026 Elexon records.
-   - Uvicorn server running on `$PORT`.
-
-### Option C: Heroku Deployment
-1. Connect repository `HarshitBagga16/kjhwr` to Heroku.
-2. Heroku reads [`Procfile`](./Procfile) automatically (`web: uvicorn app.main:app --host 0.0.0.0 --port $PORT --app-dir backend`).
-3. Set Config Vars in Heroku Dashboard (`WINDSIGHT_CORS_ORIGINS`).
-
----
-
-## 15. AI Tool Usage Disclosure
-
-In compliance with technical assessment guidelines:
-- **AI Tool Used**: Claude Opus 4.6 and Gemini 3.8 Flash via Google Antigravity.
-- **Assisted Areas**:
-  1. API documentation inspection and query parameter discovery for Elexon BMRS `FUELHH` and `WINDFOR` streams.
-  2. Synthesizing the mathematical specification for point-in-time forecast selection and zero-actual MAPE edge cases.
-  3. Generating boilerplate unit test fixtures for mock HTTPX responses and SQLAlchemy database sessions.
-  4. Authoring Tailwind CSS layout scaffolding and Recharts visual components.
-
----
-
-## 16. Known Limitations & Future Roadmap
-
-1. **Intraday Gate Closure Modeling**: The platform currently models day-ahead decision cutoffs. Expanding to 1-hour ahead continuous rolling gate closure would benefit intraday trading desks.
-2. **Spatial / Zonal De-aggregation**: GB National Grid operates with Scottish transmission export constraints (B6 boundary). Incorporating zonal BMU-level outturn would allow transmission constraint forecasting.
-3. **Automated Cron Ingestion**: Implementing a periodic GitHub Action or Celery-free daemon to poll Elexon every 30 minutes for near-real-time outturn updates.
-
----
-
-## 17. 10-Minute Video Demonstration Outline
-
-### Part 1: Customer & Commercial Overview (Max 5 minutes)
-- **00:00 - 01:00**: *The Day-Ahead Procurement Problem*: Introduce the UK wholesale electricity market, the utility's exposure to wind volatility, and the financial risk of over/under-hedging.
-- **01:00 - 02:30**: *The Operational Dashboard*: Walk through the January 15, 2026 date view. Highlight the 09:00 London Cutoff selector, the 5 core KPI cards (MAE, RMSE, Bias, WAPE, Coverage), and the generation profile chart.
-- **02:30 - 03:45**: *Forecast Vintage Inspection*: Select a delivery hour (e.g. 14:00) with substantial forecast deviation. Open the Vintage Evolution dialog to show how forecasts changed over time and prove why the pre-cutoff forecast was selected.
-- **03:45 - 04:30**: *Accuracy Analytics Deep Dive*: Review the 24-hour diurnal profile showing systematic evening underforecasting and the error distribution histogram.
-- **04:30 - 05:00**: *Data Explorer & CSV Export*: Demonstrate filtering, sorting, and exporting audit data for regulatory reporting.
-
-### Part 2: Technical Lead & Architectural Review (Max 5 minutes)
-- **05:00 - 06:15**: *Point-in-Time Logic & Temporal Integrity*: Deep dive into `alignment_service.py`. Explain Europe/London timezone handling, filtering `publish_time <= cutoff`, selecting `max(publish_time)`, and mathematical pairing of half-hourly actuals to hourly forecasts.
-- **06:15 - 07:15**: *Backend Architecture & Resilience*: Review FastAPI modular monolith design, Alembic database migrations, composite unique indices preventing duplicates, and `ElexonClient` exponential backoff retries.
-- **07:15 - 08:15**: *Frontend Architecture & Clean State*: Review React 18 TypeScript structure, Recharts integration, separation of concerns, and defensive handling of loading/empty/error states.
-- **08:15 - 09:15**: *Testing & Observability*: Present the test suites (22 backend unit tests covering edge cases like zero-actual MAPE exclusion; 7 frontend RTL tests; Ruff linting; GitHub Actions CI).
-- **09:15 - 10:00**: *Deployment, Containerization & Summary*: Review Docker Compose configuration, production multi-stage builds, and deployment readiness on Vercel/Render.
+In compliance with the assignment guidelines, AI tools (Google DeepMind Antigravity / Claude / Cursor) were used as pair-programming assistants during the development of this project for scaffolding boilerplate, refining numerical formulas, and generating test fixtures. All business logic, time-series alignment, and architectural decisions were verified and reviewed.
